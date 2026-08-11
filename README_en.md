@@ -8,9 +8,10 @@ browser — no `kubectl` required.** Under the hood it uses
 / Wasm apps on Kubernetes), and automates the whole build → deploy →
 publish pipeline as soon as you paste in your code.
 
-Current version: **1.0.0** (also shown at the bottom of the sidebar in
-the admin console). Versioning follows [semver](https://semver.org/).
-Released under the [Apache License 2.0](LICENSE).
+Current version: **1.0.1** (also shown in the admin console's sidebar;
+see the [release notes](RELEASE_NOTES.md)). Versioning follows
+[semver](https://semver.org/). Released under the
+[Apache License 2.0](LICENSE).
 
 ## What is SpinDeck?
 

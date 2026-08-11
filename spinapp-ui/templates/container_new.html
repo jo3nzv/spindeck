@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}SpinDeck — 新規 Container{% endblock %}
+{% block title %}SpinDeck — {{ t('new_container.title') }}{% endblock %}
 {% block extra_head %}
 {% include "_container_editor_assets.html" %}
 {% endblock %}
 {% block content %}
-<h1>新規 Container 登録</h1>
+<h1>{{ t('new_container.heading') }}</h1>
 
 {% if errors %}
 <div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}</div>

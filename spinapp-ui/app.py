@@ -63,6 +63,7 @@ _urllib3_connection.allowed_gai_family = lambda: socket.AF_INET
 from flask import (
     Flask,
     Response,
+    g,
     jsonify,
     redirect,
     render_template,
@@ -73,11 +74,13 @@ from flask import (
 from flask_sock import Sock
 from flask_wtf import CSRFProtect
 
+from i18n import LANG_COOKIE_NAME, SUPPORTED_LANGS, resolve_lang, t as _t
+
 # Bumped by hand on each release (semver: MAJOR.MINOR.PATCH). Shown in the
 # sidebar footer (see inject_user()) so a screenshot or bug report always
 # carries it -- no other runtime signal ties a given install back to a
 # specific point in the repo's history.
-SPINDECK_VERSION = "1.0.0"
+SPINDECK_VERSION = "1.0.1"
 
 app = Flask(__name__)
 # "container" apps only -- a browser terminal (kubectl exec, bridged over a
@@ -714,7 +717,11 @@ ROUTER_NAME_RE = re.compile(
 # request to every OIDC-protected app, plus the console itself when
 # CONSOLE_VIA_TRAEFIK is on) -- not an app anyone registered.
 ANALYTICS_EXCLUDED_APPS = {"spindeck-internal"}
-RANGE_OPTIONS = [("1h", "1時間"), ("6h", "6時間"), ("24h", "24時間"), ("168h", "7日間")]
+# Just the keys now, in display order -- analytics.html looks up each
+# one's label via t("analytics.range_" ~ key) so it's translated, rather
+# than baking a Japanese label in here (this constant used to be a list
+# of (key, label) pairs).
+RANGE_OPTIONS = ["1h", "6h", "24h", "168h"]
 RANGE_HOURS = {"1h": 1, "6h": 6, "24h": 24, "168h": 168}
 
 # Persistent (hostPath-backed) copy of Traefik's JSON access log -- see
@@ -825,6 +832,11 @@ OIDC_PUBLIC_ENDPOINTS = {
     # freshly-logged-in user to a 404 instead of the page they meant to
     # open. Confirmed live as a real, if intermittent, bug.
     "favicon",
+    # The language toggle itself has to be reachable with no session at
+    # all -- an anonymous visitor sitting on the login page is exactly
+    # who most needs to switch language before they can even read the
+    # form, let alone log in.
+    "set_lang",
 }
 
 # Authenticated via X-SpinDeck-Peer-Token (see _peer_authorized()) instead of
@@ -839,6 +851,54 @@ INTERNAL_PEER_ENDPOINTS = {
     "internal_apply_container",
     "internal_delete_container",
 }
+
+
+@app.before_request
+def resolve_request_lang():
+    """Sets g.lang for this request -- the explicit LANG_COOKIE_NAME
+    cookie if one was ever set (via set_lang() below), otherwise a
+    best-match against the browser's own Accept-Language header,
+    otherwise i18n.DEFAULT_LANG. Registered *before* check_auth() (Flask
+    runs before_request hooks in registration order) so g.lang is always
+    set by the time any view -- including the login page itself, and
+    check_auth()'s own render_template() calls -- runs, not just ones
+    reachable after a successful login."""
+    g.lang = resolve_lang(
+        request.cookies.get(LANG_COOKIE_NAME), request.headers.get("Accept-Language")
+    )
+
+
+@app.route("/set-lang/<lang>", methods=["POST"])
+@csrf.exempt
+def set_lang(lang):
+    """Sets LANG_COOKIE_NAME and redirects back to wherever the toggle was
+    clicked from. POST (not GET) specifically so this can never be
+    triggered by a bare link/prefetch/crawler -- the only client is the
+    toggle form in base.html's sidebar, which submits the current page's
+    own path as a hidden field rather than relying on the Referer header
+    (present but not guaranteed, and easy to spoof either way -- this
+    isn't a security boundary, just avoids bouncing to "/" on every
+    switch). Exempted from CSRF the same way every other no-session-
+    required POST in this app is: there's no session-scoped state here
+    for a forged cross-site request to abuse, it only ever flips a
+    display preference cookie.
+    """
+    # next is only ever meant to be the current page's own path (see
+    # base.html/login.html's hidden field, which sets it to request.path,
+    # never a full URL) -- reject anything else so a forged cross-site
+    # POST (this route is CSRF-exempt) can't use it as an open redirect.
+    # "//" or "/\" are rejected too: browsers treat a leading "//" as
+    # protocol-relative (redirects off-host) and some historically
+    # normalized a leading "/\" the same way.
+    next_path = request.form.get("next", "")
+    if not next_path.startswith("/") or next_path.startswith(("//", "/\\")):
+        next_path = url_for("index")
+    response = redirect(next_path)
+    if lang in SUPPORTED_LANGS:
+        response.set_cookie(
+            LANG_COOKIE_NAME, lang, max_age=60 * 60 * 24 * 365, samesite="Lax"
+        )
+    return response
 
 
 @app.before_request
@@ -872,6 +932,8 @@ def inject_user():
         "current_user": session.get("user"),
         "external_host": EXTERNAL_HOST,
         "spindeck_version": SPINDECK_VERSION,
+        "t": lambda key, **kwargs: _t(g.lang, key, **kwargs),
+        "current_lang": g.lang,
     }
 
 
@@ -3294,10 +3356,25 @@ def config_page():
 
     env_file_values = read_env_file()
     tls_cert_configured, tls_cert_detail = get_tls_cert_status()
+    # For the export section's "individual" dropdown -- same three list_*()
+    # calls index() already makes for the dashboard's own tables, just
+    # narrowed down to names grouped by kind (matching EXPORT_BUILDERS'
+    # keys) instead of the full per-kind detail those tables show.
+    spinapps, _ = list_spinapps()
+    crons, _ = list_cronjobs()
+    containers, _ = list_container_apps()
+    export_items = {
+        "js": [a["name"] for a in spinapps if a["kind"] == "js"],
+        "site": [a["name"] for a in spinapps if a["kind"] == "site"],
+        "proxy": [a["name"] for a in spinapps if a["kind"] == "proxy"],
+        "cron": [c["name"] for c in crons],
+        "container": [c["name"] for c in containers],
+    }
     return render_template(
         "config.html",
         namespace=NAMESPACE,
         active_nav="config",
+        export_items=export_items,
         errors=errors,
         saved=saved,
         restarting=saved and request.form.get("action") in (

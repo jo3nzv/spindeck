@@ -308,6 +308,7 @@ python3 -m venv /opt/spinapp-ui/venv
 /opt/spinapp-ui/venv/bin/pip install --upgrade pip -q
 /opt/spinapp-ui/venv/bin/pip install -q -r spinapp-ui/requirements.txt
 cp spinapp-ui/app.py /opt/spinapp-ui/app.py
+cp spinapp-ui/i18n.py /opt/spinapp-ui/i18n.py
 cp spinapp-ui/backup_export.py /opt/spinapp-ui/backup_export.py
 rm -rf /opt/spinapp-ui/templates
 cp -r spinapp-ui/templates /opt/spinapp-ui/templates

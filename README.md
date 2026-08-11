@@ -7,7 +7,7 @@ Webコンソール**です。裏側では[SpinKube](https://www.spinkube.dev/)
 （Kubernetes上でWebAssembly / Wasmアプリを動かす基盤）を使い、コードを
 貼り付けるだけでビルド・デプロイ・公開までを自動化します。
 
-現在のバージョン: **1.0.0**（管理画面のサイドバー左下にも表示されます）。
+現在のバージョン: **1.0.1**（管理画面のサイドバーにも表示されます、[リリースノート](RELEASE_NOTES.md)）。
 バージョン方針は[semver](https://semver.org/lang/ja/)に従います。
 [Apache License 2.0](LICENSE)で公開しています。
 

@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}サイトを編集: {{ edit_name }}{% endblock %}
+{% block title %}{{ t('edit_site.title_prefix') }}{{ edit_name }}{% endblock %}
 {% block extra_head %}
 {% include "_site_editor_assets.html" %}
 {% endblock %}
 {% block content %}
-<h1>サイトを編集: {{ form_name }}
-  <a href="/export/site/{{ form_name }}" class="btn outline btn-sm" style="vertical-align:middle">⬇️ エクスポート</a>
+<h1>{{ t('edit_site.title_prefix') }}{{ form_name }}
+  <a href="/export/site/{{ form_name }}" class="btn outline btn-sm" style="vertical-align:middle">⬇️ {{ t('common.export') }}</a>
 </h1>
 
 {% if errors %}
@@ -17,8 +17,8 @@
 </div>
 
 <div class="card danger-zone">
-  <h3 style="margin-top:0">危険な操作</h3>
-  <p class="section-sub">このサイトを削除します。この操作は取り消せません。</p>
+  <h3 style="margin-top:0">{{ t('common.danger_zone') }}</h3>
+  <p class="section-sub">{{ t('edit_site.delete_desc') }}{{ t('common.irreversible') }}</p>
   <form method="post" action="/apps/{{ form_name }}/delete" data-confirm="Delete {{ form_name }}?">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="del-btn">delete {{ form_name }}</button>

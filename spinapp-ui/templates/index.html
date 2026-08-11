@@ -1,31 +1,31 @@
 {% extends "base.html" %}
 {% block title %}SpinDeck — Dashboard{% endblock %}
 {% block content %}
-<h1>システム状態</h1>
+<h1>{{ t('index.system_status') }}</h1>
 <div class="stat-grid">
   <div class="card stat-tile">
-    <div class="stat-label">ホスト</div>
+    <div class="stat-label">{{ t('index.host') }}</div>
     <div class="stat-value" style="font-size:1.3rem">{{ host_status.hostname or '—' }}</div>
     <div class="stat-sub">
-      {{ host_status.os or '—' }}{% if host_status.uptime %} ・ 稼働時間 {{ host_status.uptime }}{% endif %}
+      {{ host_status.os or '—' }}{% if host_status.uptime %} ・ {{ t('index.uptime') }} {{ host_status.uptime }}{% endif %}
     </div>
   </div>
   <div class="card stat-tile">
-    <div class="stat-label">CPU負荷 (load average 1/5/15分)</div>
+    <div class="stat-label">{{ t('index.cpu_load') }}</div>
     <div class="stat-value" style="font-size:1.3rem">{{ host_status.load or '—' }}</div>
-    <div class="stat-sub">{{ host_status.cpu_count or '—' }} コア</div>
+    <div class="stat-sub">{{ host_status.cpu_count or '—' }} {{ t('index.cores') }}</div>
   </div>
   <div class="card stat-tile">
-    <div class="stat-label">メモリ使用量</div>
+    <div class="stat-label">{{ t('index.memory_usage') }}</div>
     {% if host_status.mem_total_gb %}
     <div class="stat-value" style="font-size:1.3rem">{{ "%.1f"|format(host_status.mem_used_gb) }} / {{ "%.1f"|format(host_status.mem_total_gb) }} GB</div>
-    <div class="stat-sub">{{ "%.0f"|format(host_status.mem_percent) }}% 使用中</div>
+    <div class="stat-sub">{{ "%.0f"|format(host_status.mem_percent) }}% {{ t('index.in_use') }}</div>
     {% else %}
     <div class="stat-value" style="font-size:1.3rem">—</div>
     {% endif %}
   </div>
   <div class="card stat-tile">
-    <div class="stat-label">バージョン</div>
+    <div class="stat-label">{{ t('index.version') }}</div>
     <div class="stat-sub" style="font-size:0.85rem; line-height:1.7; margin-top:0.3rem">
       k3s: <span class="mono">{{ host_status.k3s_version or '—' }}</span><br>
       cert-manager: <span class="mono">{{ component_versions.cert_manager or '—' }}</span><br>
@@ -35,12 +35,10 @@
   </div>
 </div>
 
-<h1>App 一覧
-  <a href="/export/all" class="btn outline btn-sm" style="vertical-align:middle">⬇️ 全体をエクスポート</a>
-</h1>
+<h1>{{ t('index.app_list') }}</h1>
 
 {% if error %}
-<div class="error">一覧の取得に失敗しました: {{ error }}</div>
+<div class="error">{{ t('index.list_fetch_error', error=error) }}</div>
 {% endif %}
 {% if errors %}
 <div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}</div>
@@ -64,9 +62,9 @@
         {% else %}
         {{ a.name }}
         {% endif %}
-        {% if a.auth_mode == 'basic' %}<span title="Basic認証で保護されています">🔒</span>{% endif %}
-        {% if a.auth_mode == 'oidc' %}<span title="OIDC認証(許可ユーザー限定)で保護されています">🪪</span>{% endif %}
-        {% if a.fqdn %}<span title="{{ a.fqdn }} でのみ応答します">🌐</span>{% endif %}
+        {% if a.auth_mode == 'basic' %}<span title="{{ t('index.basic_auth_protected') }}">🔒</span>{% endif %}
+        {% if a.auth_mode == 'oidc' %}<span title="{{ t('index.oidc_protected') }}">🪪</span>{% endif %}
+        {% if a.fqdn %}<span title="{{ t('index.fqdn_only', fqdn=a.fqdn) }}">🌐</span>{% endif %}
       </td>
       <td data-label="Image" class="mono" style="font-size:0.8rem;color:var(--text-secondary)">{{ a.image }}</td>
       <td data-label="Replicas">{{ a.ready_replicas }} / {{ a.replicas }}</td>
@@ -74,7 +72,7 @@
       <td data-label="URL"><a href="{{ a.url }}" target="_blank" class="mono" style="font-size:0.8rem">{{ a.url }}</a></td>
       <td>
         {% if a.copy_url %}
-        <a href="{{ a.copy_url }}" title="この設定をコピーして新規登録する">📋 copy</a>
+        <a href="{{ a.copy_url }}" title="{{ t('index.copy_title') }}">📋 copy</a>
         {% endif %}
         {% if not a.editable %}
         <form method="post" action="/apps/{{ a.name }}/delete" data-confirm="Delete {{ a.name }}?" style="display:inline">
@@ -85,22 +83,22 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="empty-state">登録されている SpinApp はありません。<a href="/apps/new">新規登録</a>してください。</td></tr>
+    <tr><td colspan="6" class="empty-state">{{ t('index.no_apps') }}<a href="/apps/new">{{ t('index.register_new') }}</a></td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
 
-<h1 style="margin-top:2.25rem">Cron Jobs</h1>
+<h1 style="margin-top:2.25rem">{{ t('index.cron_jobs') }}</h1>
 
 {% if cron_error %}
-<div class="error">Cron Job 一覧の取得に失敗しました: {{ cron_error }}</div>
+<div class="error">{{ t('index.cron_fetch_error', error=cron_error) }}</div>
 {% endif %}
 
 <div class="card" style="padding: 0;">
 <table class="stack">
   <thead>
-    <tr><th>Name</th><th>Schedule</th><th>Status</th><th>最終スケジュール</th><th></th></tr>
+    <tr><th>Name</th><th>Schedule</th><th>Status</th><th>{{ t('index.last_schedule') }}</th><th></th></tr>
   </thead>
   <tbody>
     {% for c in crons %}
@@ -123,26 +121,26 @@
         <span class="badge">Pending</span>
         {% endif %}
       </td>
-      <td data-label="最終スケジュール" style="font-size:0.85rem; color:var(--text-secondary)">{{ c.last_schedule or '-' }}</td>
+      <td data-label="{{ t('index.last_schedule') }}" style="font-size:0.85rem; color:var(--text-secondary)">{{ c.last_schedule or '-' }}</td>
       <td>
-        <a href="{{ c.copy_url }}" title="この設定をコピーして新規登録する">📋 copy</a>
+        <a href="{{ c.copy_url }}" title="{{ t('index.copy_title') }}">📋 copy</a>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="empty-state">登録されている Cron Job はありません。<a href="/crons/new">新規登録</a>してください。</td></tr>
+    <tr><td colspan="5" class="empty-state">{{ t('index.no_crons') }}<a href="/crons/new">{{ t('index.register_new') }}</a></td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
 
-<h1 style="margin-top:2.25rem">Containers</h1>
+<h1 style="margin-top:2.25rem">{{ t('index.containers') }}</h1>
 
 {% if container_error %}
-<div class="error">Container 一覧の取得に失敗しました: {{ container_error }}</div>
+<div class="error">{{ t('index.container_fetch_error', error=container_error) }}</div>
 {% endif %}
 
 <p class="section-sub" style="margin:0 0 0.6rem">
-  📦 <a href="/containers/templates">テンプレートから作成・管理{% if container_template_count %} ({{ container_template_count }}件){% endif %}</a>
+  📦 <a href="/containers/templates">{{ t('index.templates_manage') }}{% if container_template_count %}{{ t('index.templates_count', count=container_template_count) }}{% endif %}</a>
 </p>
 
 <div class="card" style="padding: 0;">
@@ -155,7 +153,7 @@
     <tr>
       <td data-label="Name">
         <a href="/containers/{{ c.name }}/edit">{{ c.name }}</a>
-        {% if c.tls_mode == 'passthrough' %}<span title="TLSパススルー (常に443番、コンテナ自身が証明書を扱う)">🔐</span>{% endif %}
+        {% if c.tls_mode == 'passthrough' %}<span title="{{ t('index.tls_passthrough_title') }}">🔐</span>{% endif %}
       </td>
       <td data-label="Image" class="mono" style="font-size:0.8rem;color:var(--text-secondary)">{{ c.image }}</td>
       <td data-label="Port" class="mono" style="font-size:0.85rem">{{ c.port }}</td>
@@ -164,15 +162,15 @@
         {% if c.url %}
         <a href="{{ c.url }}" target="_blank" class="mono" style="font-size:0.8rem">{{ c.url }}</a>
         {% else %}
-        <span class="section-sub" style="margin:0" title="外部公開なし (コンソールでのみ操作)">— 非公開</span>
+        <span class="section-sub" style="margin:0" title="{{ t('index.not_exposed_title') }}">— {{ t('index.not_exposed') }}</span>
         {% endif %}
       </td>
       <td>
-        <a href="{{ c.copy_url }}" title="この設定をコピーして新規登録する">📋 copy</a>
+        <a href="{{ c.copy_url }}" title="{{ t('index.copy_title') }}">📋 copy</a>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="empty-state">登録されている Container はありません。<a href="/containers/new">新規登録</a>してください。</td></tr>
+    <tr><td colspan="6" class="empty-state">{{ t('index.no_containers') }}<a href="/containers/new">{{ t('index.register_new') }}</a></td></tr>
     {% endfor %}
   </tbody>
 </table>

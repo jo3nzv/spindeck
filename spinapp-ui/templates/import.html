@@ -3,8 +3,7 @@
 {% block content %}
 <h1>Import</h1>
 <p class="section-sub" style="margin-top:0">
-  各アプリの編集画面、またはダッシュボードの「エクスポート」からダウンロードした
-  <code>.spindeck.json</code> ファイルを読み込み、このノードにアプリを作成・上書きします。
+  {{ t('import.intro') | safe }}
 </p>
 
 {% if errors %}
@@ -12,20 +11,18 @@
 {% endif %}
 
 <div class="card">
-  <form method="post" enctype="multipart/form-data" data-confirm="インポートを実行します。同名の既存アプリがあれば設定が上書きされます。よろしいですか？">
+  <form method="post" enctype="multipart/form-data" data-confirm="{{ t('import.confirm') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="file">エクスポートファイル</label>
+    <label for="file">{{ t('import.file_label') }}</label>
     <input type="file" id="file" name="file" accept=".json,application/json">
 
-    <label for="json_text" style="margin-top:1rem">またはJSONを直接貼り付け</label>
+    <label for="json_text" style="margin-top:1rem">{{ t('import.paste_label') }}</label>
     <textarea id="json_text" name="json_text" rows="10" class="mono" placeholder='{"spindeck_export": 1, "apps": [...]}'></textarea>
 
-    <button type="submit" class="btn-sm" style="margin-top:0.9rem">インポート実行</button>
+    <button type="submit" class="btn-sm" style="margin-top:0.9rem">{{ t('import.submit') }}</button>
   </form>
   <p class="section-sub" style="margin-top:1rem; margin-bottom:0">
-    このノードにのみ適用されます (他ノードへの自動連携はありません)。
-    パスワードハッシュやOIDC許可ユーザーなどの機微情報もファイルにそのまま含まれるため、取り扱いに注意してください。
-    同名の既存アプリがある場合は、その場で設定が上書きされます。
+    {{ t('import.footnote') }}
   </p>
 </div>
 {% endblock %}

@@ -1,7 +1,7 @@
 <div style="max-width:340px">
-  <label>専用ドメイン (FQDN)</label>
+  <label>{{ t('fqdn_field.label') }}</label>
   <select name="fqdn" form="{{ form_id }}">
-    <option value="">制限なし (パスのみで一致)</option>
+    <option value="">{{ t('fqdn_field.unrestricted') }}</option>
     {% for f in fqdns %}
     <option value="{{ f }}" {{ 'selected' if form_fqdn == f else '' }}>{{ f }}</option>
     {% endfor %}

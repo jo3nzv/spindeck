@@ -75,11 +75,12 @@ log "[2/7] Python dependencies"
 /opt/spinapp-ui/venv/bin/pip install --upgrade pip -q
 /opt/spinapp-ui/venv/bin/pip install -q -r spinapp-ui/requirements.txt
 
-log "[3/7] Console code (app.py + templates)"
+log "[3/7] Console code (app.py + i18n.py + templates)"
 # Fail before touching the live deployment if this checkout doesn't even
 # parse -- much cheaper than finding out via a crash-looping systemd unit.
 /opt/spinapp-ui/venv/bin/python -m py_compile spinapp-ui/app.py
 cp spinapp-ui/app.py /opt/spinapp-ui/app.py
+cp spinapp-ui/i18n.py /opt/spinapp-ui/i18n.py
 cp spinapp-ui/backup_export.py /opt/spinapp-ui/backup_export.py
 rm -rf /opt/spinapp-ui/templates
 cp -r spinapp-ui/templates /opt/spinapp-ui/templates

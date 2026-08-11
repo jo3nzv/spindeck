@@ -8,39 +8,38 @@
         <input type="radio" form="{{ form_id }}" name="auth_mode" value="none"
                {{ 'checked' if auth_mode != 'basic' and auth_mode != 'oidc' else '' }}
                style="width:auto" onchange="toggleAuthFields()">
-        認証なし
+        {{ t('auth_tab.none') }}
       </label>
       <label style="display:flex; align-items:center; gap:0.5rem; font-weight:600; cursor:pointer">
         <input type="radio" form="{{ form_id }}" name="auth_mode" value="basic"
                {{ 'checked' if auth_mode == 'basic' else '' }}
                style="width:auto" onchange="toggleAuthFields()">
-        Basic認証で保護する
+        {{ t('auth_tab.basic') }}
       </label>
       <label style="display:flex; align-items:center; gap:0.5rem; font-weight:600; cursor:pointer">
         <input type="radio" form="{{ form_id }}" name="auth_mode" value="oidc"
                {{ 'checked' if auth_mode == 'oidc' else '' }}
                style="width:auto" onchange="toggleAuthFields()">
-        OIDC認証で保護する(許可ユーザー限定)
+        {{ t('auth_tab.oidc') }}
       </label>
     </div>
 
     <div id="auth-basic-fields" style="{{ '' if auth_mode == 'basic' else 'display:none' }}">
       <label>Username</label>
       <input name="auth_username" form="{{ form_id }}" value="{{ auth_username or '' }}" placeholder="username">
-      <label style="margin-top:0.7rem">Password{% if is_edit and auth_mode == 'basic' %} (変更する場合のみ入力){% endif %}</label>
+      <label style="margin-top:0.7rem">Password{% if is_edit and auth_mode == 'basic' %}{{ t('auth_tab.password_change_only') }}{% endif %}</label>
       <input name="auth_password" form="{{ form_id }}" type="password" autocomplete="new-password"
-             placeholder="{{ '変更しない場合は空欄のまま' if is_edit and auth_mode == 'basic' else 'password' }}">
+             placeholder="{{ t('auth_tab.password_blank_hint') if is_edit and auth_mode == 'basic' else 'password' }}">
       <p class="section-sub" style="margin:0.9rem 0 0">
-        有効にすると、このアプリへのアクセス時にブラウザが標準のユーザー名/パスワード入力を要求します。
+        {{ t('auth_tab.basic_desc') }}
       </p>
     </div>
 
     <div id="auth-oidc-fields" style="{{ '' if auth_mode == 'oidc' else 'display:none' }}">
-      <label>許可するユーザー(1行に1人、Keycloakのユーザー名)</label>
+      <label>{{ t('auth_tab.oidc_users_label') }}</label>
       <textarea name="auth_oidc_users" form="{{ form_id }}" rows="5" placeholder="alice&#10;bob">{{ oidc_users_text or '' }}</textarea>
       <p class="section-sub" style="margin:0.9rem 0 0">
-        有効にすると、このアプリへのアクセス時にコンソールと同じKeycloakでのログインを求め、
-        ここに列挙したユーザー名(preferred_username)を持つユーザーだけを通します。
+        {{ t('auth_tab.oidc_desc') }}
       </p>
     </div>
   </div>

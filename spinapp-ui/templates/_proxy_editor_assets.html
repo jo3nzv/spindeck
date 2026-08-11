@@ -70,6 +70,19 @@
 const EXTERNAL_HOST = {{ external_host | tojson }};
 const INITIAL_RULES = {{ (form_rules or []) | tojson }};
 const INITIAL_REWRITES = {{ (form_rewrites or []) | tojson }};
+const I18N = {
+  enterName: {{ t('editor_assets.enter_name_hint') | tojson }},
+  matchPrefix: {{ t('proxy_rules.match_prefix') | tojson }},
+  matchExact: {{ t('proxy_rules.match_exact') | tojson }},
+  actionPassthrough: {{ t('proxy_rules.action_passthrough') | tojson }},
+  actionBlock: {{ t('proxy_rules.action_block') | tojson }},
+  actionBounce: {{ t('proxy_rules.action_bounce') | tojson }},
+  noRules: {{ t('proxy_rules.no_rules') | tojson }},
+  deleteRuleTitle: {{ t('proxy_rules.delete_rule_title') | tojson }},
+  noRewrites: {{ t('proxy_rules.no_rewrites') | tojson }},
+  deleteRewriteTitle: {{ t('proxy_rules.delete_rewrite_title') | tojson }},
+  targetPlaceholder: {{ t('proxy_rules.target_placeholder') | tojson }},
+};
 
 let proxyRules = INITIAL_RULES.map((r) => Object.assign({ match: 'prefix', path: '', action: 'passthrough', target: '' }, r));
 let proxyRewrites = INITIAL_REWRITES.map((r) => Object.assign({ pattern: '', replace: '' }, r));
@@ -91,7 +104,7 @@ function refreshPreview() {
   const openLink = document.getElementById('preview-open');
   const baseLabel = document.getElementById('preview-base-label');
   const name = document.getElementById('proxy-name-input').value.trim();
-  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : '(name を入力してください)';
+  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : I18N.enterName;
   if (url) {
     frame.src = url;
     openLink.href = url;
@@ -124,7 +137,7 @@ function renderRules() {
   if (!proxyRules.length) {
     const empty = document.createElement('div');
     empty.className = 'empty-rows';
-    empty.textContent = 'ルールなし: すべてのパスをそのまま backend origin へ転送します。';
+    empty.textContent = I18N.noRules;
     list.appendChild(empty);
   }
   proxyRules.forEach((rule, i) => {
@@ -132,7 +145,7 @@ function renderRules() {
     row.className = 'rule-row';
 
     const matchSel = document.createElement('select');
-    [['prefix', '前方一致'], ['exact', '完全一致']].forEach(([v, label]) => {
+    [['prefix', I18N.matchPrefix], ['exact', I18N.matchExact]].forEach(([v, label]) => {
       const opt = document.createElement('option');
       opt.value = v; opt.textContent = label;
       if (rule.match === v) opt.selected = true;
@@ -146,7 +159,7 @@ function renderRules() {
     pathInput.addEventListener('input', () => { rule.path = pathInput.value; });
 
     const actionSel = document.createElement('select');
-    [['passthrough', 'そのまま転送'], ['block', '404にする'], ['bounce', '別パスの内容に差し替え']].forEach(([v, label]) => {
+    [['passthrough', I18N.actionPassthrough], ['block', I18N.actionBlock], ['bounce', I18N.actionBounce]].forEach(([v, label]) => {
       const opt = document.createElement('option');
       opt.value = v; opt.textContent = label;
       if (rule.action === v) opt.selected = true;
@@ -154,7 +167,7 @@ function renderRules() {
     });
 
     const targetInput = document.createElement('input');
-    targetInput.placeholder = '/shared/xxxxx (backend 上のパス)';
+    targetInput.placeholder = I18N.targetPlaceholder;
     targetInput.value = rule.target || '';
     targetInput.addEventListener('input', () => { rule.target = targetInput.value; });
     const targetCell = document.createElement('div');
@@ -167,7 +180,7 @@ function renderRules() {
     syncTargetVisibility();
 
     const delBtn = document.createElement('button');
-    delBtn.type = 'button'; delBtn.className = 'row-del'; delBtn.title = 'ルールを削除';
+    delBtn.type = 'button'; delBtn.className = 'row-del'; delBtn.title = I18N.deleteRuleTitle;
     delBtn.textContent = '×';
     delBtn.addEventListener('click', () => { proxyRules.splice(i, 1); renderRules(); });
 
@@ -191,7 +204,7 @@ function renderRewrites() {
   if (!proxyRewrites.length) {
     const empty = document.createElement('div');
     empty.className = 'empty-rows';
-    empty.textContent = '書き換えルールなし: レスポンス本文はそのまま中継します。';
+    empty.textContent = I18N.noRewrites;
     list.appendChild(empty);
   }
   proxyRewrites.forEach((rw, i) => {
@@ -209,7 +222,7 @@ function renderRewrites() {
     repInput.addEventListener('input', () => { rw.replace = repInput.value; });
 
     const delBtn = document.createElement('button');
-    delBtn.type = 'button'; delBtn.className = 'row-del'; delBtn.title = '書き換えルールを削除';
+    delBtn.type = 'button'; delBtn.className = 'row-del'; delBtn.title = I18N.deleteRewriteTitle;
     delBtn.textContent = '×';
     delBtn.addEventListener('click', () => { proxyRewrites.splice(i, 1); renderRewrites(); });
 

@@ -1,18 +1,18 @@
 <!doctype html>
-<html lang="ja">
+<html lang="{{ current_lang }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SpinDeck — ログイン</title>
+<title>SpinDeck — {{ t('login.title') }}</title>
 <style>
-  :root { color-scheme: light; --page:#f9f9f7; --surface-1:#fcfcfb; --text-primary:#0b0b0b;
+  :root { color-scheme: light; --page:#f9f9f7; --surface-1:#fcfcfb; --surface-2:#f3f2ef; --text-primary:#0b0b0b;
     --text-secondary:#52514e; --border:rgba(11,11,11,0.10); --series-1:#2a78d6; --radius:12px;
     --status-critical:#d03b3b; }
   @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19;
+    :root:where(:not([data-theme="light"])) { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#222221;
       --text-primary:#fff; --text-secondary:#c3c2b7; --border:rgba(255,255,255,0.10); --series-1:#3987e5; }
   }
-  :root[data-theme="dark"] { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19; --text-primary:#fff;
+  :root[data-theme="dark"] { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#222221; --text-primary:#fff;
     --text-secondary:#c3c2b7; --border:rgba(255,255,255,0.10); --series-1:#3987e5; }
   * { box-sizing: border-box; }
   body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page);
@@ -32,21 +32,51 @@
     border-radius: 8px; border: 1px solid var(--series-1); background: var(--series-1); color: white;
     font-family: inherit; }
   button:hover { filter: brightness(1.08); }
+  .lang-toggle {
+    display: flex; justify-content: flex-end; margin-bottom: 0.75rem;
+  }
+  .lang-toggle-group {
+    display: flex; gap: 0.15rem; background: var(--surface-2);
+    border-radius: 6px; padding: 0.15rem; width: fit-content;
+  }
+  .lang-toggle form { margin: 0; }
+  button.lang-toggle-btn {
+    all: unset; cursor: pointer; color: var(--text-muted, var(--text-secondary));
+    padding: 0.15rem 0.5rem; font-size: 0.72rem; font-family: inherit; width: auto;
+    border-radius: 4px;
+  }
+  button.lang-toggle-btn:hover { color: var(--text-secondary); }
+  button.lang-toggle-btn.active {
+    background: var(--surface-1); color: var(--text-primary); font-weight: 600; cursor: default;
+    box-shadow: 0 1px 2px var(--border);
+  }
 </style>
 </head>
 <body>
   <div class="card">
-    <h1>⚡ SpinDeck ログイン</h1>
+    <div class="lang-toggle">
+      <div class="lang-toggle-group">
+        <form method="post" action="/set-lang/ja">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button type="submit" class="lang-toggle-btn {{ 'active' if current_lang == 'ja' else '' }}" {{ 'disabled' if current_lang == 'ja' else '' }}>日本語</button>
+        </form>
+        <form method="post" action="/set-lang/en">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button type="submit" class="lang-toggle-btn {{ 'active' if current_lang == 'en' else '' }}" {{ 'disabled' if current_lang == 'en' else '' }}>EN</button>
+        </form>
+      </div>
+    </div>
+    <h1>⚡ SpinDeck {{ t('login.title') }}</h1>
     {% if error %}
     <div class="error">{{ error }}</div>
     {% endif %}
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="login-username">ユーザー名</label>
+      <label for="login-username">{{ t('login.username') }}</label>
       <input id="login-username" name="username" autocomplete="username" required autofocus>
-      <label for="login-password">パスワード</label>
+      <label for="login-password">{{ t('login.password') }}</label>
       <input id="login-password" name="password" type="password" autocomplete="current-password" required>
-      <button type="submit">ログイン</button>
+      <button type="submit">{{ t('login.submit') }}</button>
     </form>
   </div>
 </body>

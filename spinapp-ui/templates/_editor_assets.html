@@ -48,7 +48,7 @@ function refreshPreview() {
   const openLink = document.getElementById('preview-open');
   const baseLabel = document.getElementById('preview-base-label');
   const name = document.getElementById('js-name-input').value.trim();
-  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : '(name を入力してください)';
+  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : {{ t('editor_assets.enter_name_hint') | tojson }};
   if (url) {
     frame.src = url;
     openLink.href = url;

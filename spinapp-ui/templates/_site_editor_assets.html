@@ -119,7 +119,7 @@ function refreshPreview() {
   const openLink = document.getElementById('preview-open');
   const baseLabel = document.getElementById('preview-base-label');
   const name = document.getElementById('site-name-input').value.trim();
-  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : '(name を入力してください)';
+  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : {{ t('editor_assets.enter_name_hint') | tojson }};
   if (url) {
     frame.src = url;
     openLink.href = url;
@@ -199,7 +199,8 @@ function showBinaryPreview(path) {
     panel.appendChild(icon);
     const label = document.createElement('div');
     const bytes = Math.round((siteFiles[path] || '').length * 0.75);
-    label.textContent = `${path} (${(bytes / 1024).toFixed(1)} KB) — バイナリファイルのためプレビューはありません`;
+    const noPreviewText = {{ t('site_editor.no_preview_binary') | tojson }};
+    label.textContent = `${path} (${(bytes / 1024).toFixed(1)} KB) — ${noPreviewText}`;
     panel.appendChild(label);
   }
 }
@@ -226,19 +227,19 @@ function selectFile(path) {
 }
 
 function addFile() {
-  const input = prompt('ファイルパスを入力してください (例: sub/page.html)');
+  const input = prompt({{ t('site_editor.prompt_file_path') | tojson }});
   if (!input) return;
   const clean = input.trim().replace(/^\/+/, '');
   if (!clean || !/^[a-zA-Z0-9][a-zA-Z0-9_./-]*$/.test(clean) || clean.split('/').includes('..')) {
-    alert('不正なファイルパスです。');
+    alert({{ t('site_editor.invalid_file_path') | tojson }});
     return;
   }
   if (Object.prototype.hasOwnProperty.call(siteFiles, clean)) {
-    alert('同名のファイルが既にあります。');
+    alert({{ t('site_editor.duplicate_file') | tojson }});
     return;
   }
   if (isBinaryPath(clean)) {
-    alert('この拡張子は「アップロード」から追加してください。');
+    alert({{ t('site_editor.use_upload_for_ext') | tojson }});
     return;
   }
   syncCurrentModel();
@@ -277,7 +278,7 @@ function uploadFiles(fileList) {
 
 function removeFile(path) {
   if (Object.keys(siteFiles).length <= 1) return;
-  if (!confirm(`${path} を削除しますか?`)) return;
+  if (!confirm({{ t('site_editor.confirm_remove_file') | tojson }}.replace('{path}', path))) return;
   if (siteModels[path]) {
     siteModels[path].dispose();
     delete siteModels[path];

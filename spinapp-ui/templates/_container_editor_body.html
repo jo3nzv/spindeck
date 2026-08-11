@@ -1,28 +1,34 @@
+{# form_name is attacker-controllable (echoed back as-is when NAME_RE
+   validation fails on create_container()) -- run it through Jinja's own
+   auto-escaping via {% set %}...{% endset %} before it's interpolated
+   into a translated string that then gets marked |safe below, instead
+   of formatting the raw value directly into HTML text (see i18n.py's
+   t(): .format() does not escape). #}
+{% set safe_form_name %}{{ form_name or '<name>' }}{% endset %}
 <p class="section-sub" style="margin-top:0">
-  任意のDockerイメージを、Wasmサンドボックスを介さず通常のコンテナとして実行します。
-  認証不要の公開イメージ (Docker Hub / GHCR など) のみ指定でき、<strong>信頼できるイメージのみ</strong>使用してください。
+  {{ t('container_editor.intro') | safe }}
 </p>
 
 <div class="etabs">
-  <button type="button" id="etab-config" class="active" onclick="showEditorPanel('config')">設定</button>
-  <button type="button" id="etab-auth" onclick="showEditorPanel('auth')">🔒 認証</button>
+  <button type="button" id="etab-config" class="active" onclick="showEditorPanel('config')">{{ t('common.tab_config') }}</button>
+  <button type="button" id="etab-auth" onclick="showEditorPanel('auth')">{{ t('common.tab_auth') }}</button>
   {% if is_edit %}
-  <button type="button" id="etab-console" onclick="showEditorPanel('console')">🖥️ コンソール</button>
-  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">📜 ログ</button>
+  <button type="button" id="etab-console" onclick="showEditorPanel('console')">{{ t('common.tab_console') }}</button>
+  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">{{ t('common.tab_logs') }}</button>
   {% endif %}
 </div>
 
 <div id="epanel-config" class="epanel active">
 <div class="wrap-row" style="display:flex; align-items:flex-end; gap:0.4rem; margin-bottom:0.5rem">
   <div style="max-width:220px; flex:1">
-    <label>Name{% if is_edit %} (変更不可){% endif %}</label>
+    <label>Name{% if is_edit %}{{ t('container_editor.name_readonly_note') }}{% endif %}</label>
     <input form="container-form" name="name" pattern="[a-z0-9\-]+" placeholder="my-container" required
            value="{{ form_name or '' }}" {{ 'readonly' if is_edit else '' }}>
   </div>
   <div style="max-width:280px; flex:1">
-    <label>専用ドメイン (FQDN、任意)</label>
+    <label>{{ t('container_editor.fqdn_label') }}</label>
     <input form="container-form" name="fqdn" list="container-fqdn-suggestions" class="mono"
-           placeholder="app.example.com (空欄可)" value="{{ form_fqdn or '' }}">
+           placeholder="{{ t('container_editor.fqdn_placeholder') }}" value="{{ form_fqdn or '' }}">
     <datalist id="container-fqdn-suggestions">
       {% for f in fqdns %}
       <option value="{{ f }}">
@@ -30,61 +36,55 @@
     </datalist>
   </div>
   <div style="max-width:140px; flex:1">
-    <label>ポート {% if not form_fqdn %}(FQDN指定時のみ必須){% endif %}</label>
-    <input form="container-form" name="port" type="number" min="1" max="65535" placeholder="8080 (空欄可)"
+    <label>{{ t('container_editor.port_label') }} {% if not form_fqdn %}{{ t('container_editor.port_required_note') }}{% endif %}</label>
+    <input form="container-form" name="port" type="number" min="1" max="65535" placeholder="{{ t('container_editor.port_placeholder') }}"
            value="{{ form_port or '' }}">
   </div>
 </div>
 <p class="section-sub" style="margin-top:0; margin-bottom:1rem">
-  containerアプリはパスではなくホスト全体を占有するため、他のアプリと同じFQDNは使えません。
-  FQDNを空欄にすると、このポート・TLSの扱い(Traefik経由の443番)による外部公開はなくなります
-  (🖥️コンソールからのみ操作する計算専用コンテナ向け。その場合このポートもServiceも作成されません)。
-  下の「追加の公開ポート」はFQDN/ポートの設定と関係なく使えるため、
-  例えばVPNのように443番でのTraefik経由の公開が不要なアプリは、
-  ここを空欄にしたまま追加ポートだけを設定することもできます。
+  {{ t('container_editor.fqdn_port_desc') }}
 </p>
 
 <input type="hidden" form="container-form" name="edit_mode" id="edit-mode-input" value="form">
 <div class="etabs">
-  <button type="button" id="csub-form" class="active" onclick="showConfigSubPanel('form')">フォーム</button>
-  <button type="button" id="csub-yaml" onclick="showConfigSubPanel('yaml')">YAML</button>
+  <button type="button" id="csub-form" class="active" onclick="showConfigSubPanel('form')">{{ t('container_editor.subtab_form') }}</button>
+  <button type="button" id="csub-yaml" onclick="showConfigSubPanel('yaml')">{{ t('container_editor.subtab_yaml') }}</button>
 </div>
 
 <div id="csubpanel-form" class="epanel active">
-<label>イメージ</label>
+<label>{{ t('container_editor.image_label') }}</label>
 <input form="container-form" name="image" class="mono" placeholder="nginx:latest"
        value="{{ form_image or '' }}" style="margin-bottom:0.9rem">
 
-<label>起動コマンド (command、任意)</label>
+<label>{{ t('container_editor.command_label') }}</label>
 <input form="container-form" name="command" id="container-command-input" class="mono"
-       placeholder="空欄ならイメージの既定のコマンドをそのまま使います" value="{{ form_command or '' }}">
+       placeholder="{{ t('container_editor.command_placeholder') }}" value="{{ form_command or '' }}">
 <label style="display:flex; align-items:center; gap:0.4rem; margin-top:0.4rem; margin-bottom:0; font-weight:400; color:var(--text-primary)">
   <input type="checkbox" id="container-sleep-infinity-checkbox" style="width:auto; height:auto"
          onchange="if (this.checked) { document.getElementById('container-command-input').value = 'sleep infinity'; this.checked = false; }">
-  代わりに <code>sleep infinity</code> を入力する
+  {{ t('container_editor.sleep_infinity_label') | safe }}
 </label>
 <p class="section-sub" style="margin-top:0.4rem; margin-bottom:1.1rem">
-  素の <code>python</code>・<code>node</code> 等は既定のコマンドがすぐ終了して再起動を繰り返すため、
-  <code>sleep infinity</code> など起動し続けるコマンドの指定が必要な場合があります (スペース区切り)。
+  {{ t('container_editor.command_desc') | safe }}
 </p>
 
-<label>環境変数 (env、任意)</label>
+<label>{{ t('container_editor.env_label') }}</label>
 <textarea form="container-form" name="env" class="mono" rows="3"
-          placeholder="KEY=VALUE (1行に1つ)" style="margin-bottom:1.1rem">{{ form_env or '' }}</textarea>
+          placeholder="{{ t('container_editor.env_placeholder') }}" style="margin-bottom:1.1rem">{{ form_env or '' }}</textarea>
 
 <div class="wrap-row" style="display:flex; gap:0.6rem; margin-bottom:0.4rem">
   <div style="max-width:160px; flex:1">
-    <label>CPU上限</label>
+    <label>{{ t('container_editor.cpu_limit') }}</label>
     <input form="container-form" name="cpu_limit" class="mono" placeholder="500m"
            value="{{ form_cpu_limit or '500m' }}">
   </div>
   <div style="max-width:160px; flex:1">
-    <label>メモリ上限</label>
+    <label>{{ t('container_editor.mem_limit') }}</label>
     <input form="container-form" name="mem_limit" class="mono" placeholder="512Mi"
            value="{{ form_mem_limit or '512Mi' }}">
   </div>
   <div style="max-width:120px; flex:1">
-    <label>レプリカ数</label>
+    <label>{{ t('container_editor.replicas') }}</label>
     <input form="container-form" name="replicas" type="number" min="1" max="{{ max_replicas }}"
            value="{{ form_replicas or 1 }}">
   </div>
@@ -93,80 +93,67 @@
   <input type="checkbox" form="container-form" name="storage" id="container-storage-checkbox" style="width:auto; height:auto"
          {{ 'checked' if form_storage else '' }}
          onchange="document.getElementById('container-mount-path-row').style.display = this.checked ? '' : 'none'">
-  永続ストレージを使う
+  {{ t('container_editor.use_storage') }}
 </label>
 <div id="container-mount-path-row" style="margin:0.5rem 0 0; {{ '' if form_storage else 'display:none' }}">
-  <label>マウント先パス</label>
+  <label>{{ t('container_editor.mount_path') }}</label>
   <input form="container-form" name="mount_path" class="mono" placeholder="/data" value="{{ form_mount_path or '/data' }}">
 </div>
 <p class="section-sub" style="margin-top:0.4rem; margin-bottom:1.1rem">
-  容量上限はなく (ノードのディスク容量に依存)、ホスト側の実体は <code>/data/containers/{{ form_name or '&lt;name&gt;' }}/</code> です。
-  <strong>レプリカ数2以上は全レプリカが同じストレージを共有</strong>するため、同時書き込みに対応しないアプリは1のままにしてください。
+  {{ t('container_editor.storage_desc', name=safe_form_name) | safe }}
 </p>
 
-<h3 style="font-size:0.95rem; margin:1.4rem 0 0.4rem">サイドカーコンテナ (任意)</h3>
+<h3 style="font-size:0.95rem; margin:1.4rem 0 0.4rem">{{ t('container_editor.sidecars_heading') }}</h3>
 <p class="section-sub" style="margin-top:0; margin-bottom:0.8rem">
-  同じPod内で追加のコンテナを一緒に動かせます。WordPress+MySQLのような「連携する複数コンテナ」を1つのアプリとしてデプロイする場合に使ってください。
-  同じPod内のコンテナ同士は <code>localhost</code> で通信できます (例: MySQLサイドカーには <code>127.0.0.1:3306</code> で接続)。
-  <strong>レプリカ数は1のままにしてください</strong> — 2以上にするとサイドカーもレプリカごとに個別に立ち上がってしまい、データベース等は正しく共有されません。
+  {{ t('container_editor.sidecars_desc') | safe }}
 </p>
 <div id="sidecars-list"></div>
-<button type="button" class="btn-sm" onclick="addSidecar()" style="margin-bottom:1.1rem">+ サイドカーコンテナを追加</button>
+<button type="button" class="btn-sm" onclick="addSidecar()" style="margin-bottom:1.1rem">{{ t('container_editor.add_sidecar') }}</button>
 <input type="hidden" form="container-form" name="sidecars_json" id="sidecars-json-input" value="{{ form_sidecars_json or '[]' }}">
 </div>
 
 <div id="csubpanel-yaml" class="epanel">
 <p class="section-sub" style="margin-top:0">
-  Deployment と Service の生YAMLを直接編集します (env変数・複数コンテナ・command指定など自由に書けます)。
-  <code>privileged</code>・<code>hostNetwork</code>・管理外の<code>hostPath</code>等は拒否されます。
-  <strong><code>spinapp-ui.dev/app</code> ラベルは消さないでください</strong>(消すと一覧・削除・コンソールがこのアプリを認識できなくなります)。
+  {{ t('container_editor.yaml_desc') | safe }}
 </p>
 <div id="yaml-container"></div>
 <textarea form="container-form" name="yaml_manifest" id="yaml-textarea" style="display:none">{{ form_yaml_manifest or '' }}</textarea>
 </div>
 
-<label>TLSの扱い</label>
+<label>{{ t('container_editor.tls_mode_label') }}</label>
 <div class="wrap-row" style="display:flex; gap:1.4rem; margin-bottom:0.5rem">
   <label style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0; font-weight:400; color:var(--text-primary)">
     <input type="radio" form="container-form" name="tls_mode" value="terminate" style="width:auto; height:auto"
            {{ 'checked' if (form_tls_mode or 'terminate') == 'terminate' else '' }}>
-    kubespin (Traefik) で終端 — 推奨
+    {{ t('container_editor.tls_terminate') }}
   </label>
   <label style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0; font-weight:400; color:{{ 'var(--text-primary)' if container_passthrough_enabled else 'var(--text-secondary)' }}">
     <input type="radio" form="container-form" name="tls_mode" value="passthrough" style="width:auto; height:auto"
            {{ 'checked' if form_tls_mode == 'passthrough' else '' }}
            {{ 'disabled' if not container_passthrough_enabled else '' }}>
-    コンテナへパススルー (常に443番ポート){{ '' if container_passthrough_enabled else ' (無効化されています)' }}
+    {{ t('container_editor.tls_passthrough') }}{{ '' if container_passthrough_enabled else t('container_editor.tls_passthrough_disabled') }}
   </label>
 </div>
 <p class="section-sub" style="margin-top:0; margin-bottom:1.1rem">
-  「終端」は/configのHTTP/HTTPS設定に従い (現在: {% if traefik_scheme == 'https' %}<strong>HTTPS</strong>{% else %}<strong>HTTP</strong>{% endif %})、認証・アクセスログ分析が使えます。
-  「パススルー」は常に443番でTLSを復号せずコンテナへ転送します (証明書はコンテナ側で用意、認証・ログ分析は不可)。
-  {% if not container_passthrough_enabled %}パススルーモードは/configで無効化されています。{% endif %}
+  {{ t('container_editor.tls_desc_pre') }}{% if traefik_scheme == 'https' %}<strong>HTTPS</strong>{% else %}<strong>HTTP</strong>{% endif %}{{ t('container_editor.tls_desc_mid') }}
+  {% if not container_passthrough_enabled %}{{ t('container_editor.passthrough_disabled_note') }}{% endif %}
 </p>
 
 <label style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0; font-weight:400; color:var(--text-primary)">
   <input type="checkbox" form="container-form" name="upgrade_insecure" style="width:auto; height:auto"
          {{ 'checked' if form_upgrade_insecure else '' }}>
-  混在コンテンツを自動修正する (upgrade-insecure-requests)
+  {{ t('container_editor.upgrade_insecure_label') | safe }}
 </label>
 <p class="section-sub" style="margin-top:0.4rem; margin-bottom:1.1rem">
-  コンテナ自身が生成するHTML内に古い<code>http://</code>絶対URL（CSS/JS/画像など）が残っていて、HTTPSページ上でブラウザに
-  「混在コンテンツ」としてブロックされる場合の応急処置です。有効にすると、ブラウザに対して
-  <code>http://</code>のサブリソース要求を送信前に自動的に<code>https://</code>へ書き換えるよう指示するレスポンスヘッダーを追加します
-  (根本的にはアプリ側の設定・保存データを<code>https://</code>に直すのが望ましいです)。「終端」モードのみで有効です。
+  {{ t('container_editor.upgrade_insecure_desc') | safe }}
 </p>
 
-<h3 style="font-size:0.95rem; margin:1.4rem 0 0.4rem">追加の公開ポート (任意)</h3>
+<h3 style="font-size:0.95rem; margin:1.4rem 0 0.4rem">{{ t('container_editor.extra_ports_heading') }}</h3>
 <p class="section-sub" style="margin-top:0; margin-bottom:0.8rem">
-  上のポート・TLSの扱いとは別に、TCP/UDPのポートを追加でそのまま公開できます。
-  「転送先」は空欄なら外部ポートと同じ番号としてコンテナへ転送されます。
-  外部ポートとコンテナが実際にリッスンしているポートが異なる場合のみ入力してください。
-  <strong>Traefikを経由しないため、FQDNによる絞り込みもTLS終端も一切行われません。
-  指定したポートは誰からでも到達可能になります。</strong>信頼できる用途にのみ使用してください。
+  {{ t('container_editor.extra_ports_desc') | safe }}
 </p>
 <div id="extra-ports-list"></div>
-<button type="button" class="btn-sm" onclick="addExtraPort()" style="margin-bottom:1.1rem">+ ポートを追加</button>
+<button type="button" class="btn-sm" onclick="addExtraPort()" style="margin-bottom:1.1rem">{{ t('container_editor.add_port') }}</button>
 <input type="hidden" form="container-form" name="extra_ports_json" id="extra-ports-json-input" value="{{ form_extra_ports_json or '[]' }}">
 
 <form id="container-form" method="post" action="/containers">
@@ -176,7 +163,7 @@
 </form>
 </div>
 
-{% with form_id = "container-form", auth_tab_extra_note = "TLSの扱いが「コンテナへパススルー」の場合、認証は設定できません（保存時にエラーになります）。OIDC認証を使う場合、専用ドメイン（自由入力のFQDNで構いません）に対して \"https://<ドメイン>/_spindeck/oidc/callback\" をKeycloak側のクライアントのRedirect URIに登録してください。" %}
+{% with form_id = "container-form", auth_tab_extra_note = t('container_editor.auth_note') %}
 {% include "_auth_tab.html" %}
 {% endwith %}
 
@@ -185,21 +172,20 @@
   <div class="card" style="padding:0.9rem 1rem">
     <div class="wrap-row" style="display:flex; align-items:flex-end; gap:0.6rem; margin-bottom:0.8rem">
       <div style="max-width:320px; flex:1">
-        <label>接続先のレプリカ</label>
+        <label>{{ t('container_editor.replica_label') }}</label>
         <select id="exec-pod-select"></select>
       </div>
       <div style="max-width:220px; flex:1">
-        <label>接続先のコンテナ</label>
+        <label>{{ t('container_editor.container_label') }}</label>
         <select id="exec-container-select"></select>
       </div>
-      <button type="button" id="exec-connect-btn" class="btn-sm">接続</button>
-      <button type="button" id="exec-disconnect-btn" class="btn-sm" style="display:none">切断</button>
+      <button type="button" id="exec-connect-btn" class="btn-sm">{{ t('container_editor.connect') }}</button>
+      <button type="button" id="exec-disconnect-btn" class="btn-sm" style="display:none">{{ t('container_editor.disconnect') }}</button>
       <span id="exec-status" class="section-sub" style="margin:0 0 0.6rem"></span>
     </div>
     <div id="exec-term"></div>
     <p class="section-sub" style="margin-top:0.6rem; margin-bottom:0">
-      このコンテナが実際に実行している内容そのものに対する、制限のないシェルアクセスです。
-      接続を切る、またはこのページを離れるとセッションは終了します。
+      {{ t('container_editor.console_desc') }}
     </p>
   </div>
 </div>

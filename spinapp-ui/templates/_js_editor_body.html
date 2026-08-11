@@ -1,8 +1,5 @@
 <p class="section-sub" style="margin-top:0">
-  Cloudflare Workers 風の JavaScript をそのまま貼り付けてデプロイできます。
-  <code>addEventListener('fetch', event =&gt; event.respondWith(...))</code> の形式で記述してください。
-  貼り付けたコードはサーバー側で Wasm コンポーネントにビルドされ、ローカルレジストリ経由でクラスタにデプロイされます
-  (初回起動時のビルドに数十秒かかります)。
+  {{ t('js_editor.intro') | safe }}
 </p>
 <div class="wrap-row" style="display:flex; align-items:flex-end; gap:0.4rem; margin-bottom:1rem">
   {% with form_id = "js-form" %}
@@ -10,18 +7,18 @@
   {% endwith %}
   <span class="mono" style="padding-bottom:0.6rem; color:var(--text-muted)">/</span>
   <div style="max-width:340px; flex:1">
-    <label>Name{% if is_edit %} (既存アプリの更新 - 変更不可){% endif %}</label>
+    <label>Name{% if is_edit %}{{ t('common.name_readonly_note') }}{% endif %}</label>
     <input id="js-name-input" form="js-form" name="name" pattern="[a-z0-9\-]+" placeholder="my-js-worker" required
            value="{{ form_name or '' }}" {{ 'readonly' if is_edit else '' }}>
   </div>
 </div>
 
 <div class="etabs">
-  <button type="button" id="etab-code" class="active" onclick="showEditorPanel('code')">コード</button>
-  <button type="button" id="etab-preview" onclick="showEditorPanel('preview')">プレビュー</button>
-  <button type="button" id="etab-auth" onclick="showEditorPanel('auth')">🔒 認証</button>
+  <button type="button" id="etab-code" class="active" onclick="showEditorPanel('code')">{{ t('common.tab_code') }}</button>
+  <button type="button" id="etab-preview" onclick="showEditorPanel('preview')">{{ t('common.tab_preview') }}</button>
+  <button type="button" id="etab-auth" onclick="showEditorPanel('auth')">{{ t('common.tab_auth') }}</button>
   {% if is_edit %}
-  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">📜 ログ</button>
+  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">{{ t('common.tab_logs') }}</button>
   {% endif %}
 </div>
 
@@ -39,11 +36,11 @@
   <div class="preview-bar">
     <span class="preview-base mono" id="preview-base-label">-</span>
     <input id="preview-path" class="mono" value="/" placeholder="/path">
-    <button type="button" id="preview-reload">更新</button>
-    <a id="preview-open" href="#" target="_blank" class="btn-like" style="opacity:0.4">新しいタブ↗</a>
+    <button type="button" id="preview-reload">{{ t('common.refresh') }}</button>
+    <a id="preview-open" href="#" target="_blank" class="btn-like" style="opacity:0.4">{{ t('common.open_new_tab') }}</a>
   </div>
   <iframe id="preview-frame" title="preview"></iframe>
-  <p class="preview-hint">デプロイ前は404になります。デプロイ後に「更新」を押してください。JSON を返す API はブラウザにそのまま表示されます。</p>
+  <p class="preview-hint">{{ t('js_editor.preview_hint') }}</p>
 </div>
 
 {% with form_id = "js-form" %}

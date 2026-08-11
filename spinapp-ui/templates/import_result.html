@@ -1,31 +1,31 @@
 {% extends "base.html" %}
-{% block title %}SpinDeck — Import 結果{% endblock %}
+{% block title %}SpinDeck — {{ t('import_result.title') }}{% endblock %}
 {% block content %}
-<h1>Import 結果</h1>
+<h1>{{ t('import_result.title') }}</h1>
 <p class="section-sub" style="margin-top:0">
-  <a href="/import">← Importに戻る</a> ・ <a href="/">ダッシュボードに戻る</a>
+  <a href="/import">{{ t('import_result.back_to_import') }}</a> ・ <a href="/">{{ t('import_result.back_to_dashboard') }}</a>
 </p>
 
 <div class="card" style="padding: 0;">
 <table class="stack">
   <thead>
-    <tr><th>種類</th><th>名前</th><th>結果</th></tr>
+    <tr><th>{{ t('import_result.kind') }}</th><th>{{ t('import_result.name') }}</th><th>{{ t('import_result.result') }}</th></tr>
   </thead>
   <tbody>
     {% for r in results %}
     <tr>
-      <td data-label="種類">{{ r.kind }}</td>
-      <td data-label="名前" class="mono">{{ r.name }}</td>
-      <td data-label="結果">
+      <td data-label="{{ t('import_result.kind') }}">{{ r.kind }}</td>
+      <td data-label="{{ t('import_result.name') }}" class="mono">{{ r.name }}</td>
+      <td data-label="{{ t('import_result.result') }}">
         {% if r.ok %}
-        <span class="badge ok"><span class="dot"></span>成功</span>
+        <span class="badge ok"><span class="dot"></span>{{ t('import_result.success') }}</span>
         {% else %}
-        <span class="badge bad"><span class="dot"></span>失敗: {{ r.error }}</span>
+        <span class="badge bad"><span class="dot"></span>{{ t('import_result.failure', error=r.error) }}</span>
         {% endif %}
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="3" class="empty-state">インポートされたアプリはありません。</td></tr>
+    <tr><td colspan="3" class="empty-state">{{ t('import_result.no_apps') }}</td></tr>
     {% endfor %}
   </tbody>
 </table>

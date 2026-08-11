@@ -1,42 +1,42 @@
 {% extends "base.html" %}
-{% block title %}SpinDeck — Container テンプレート{% endblock %}
+{% block title %}SpinDeck — {{ t('container_templates.title') }}{% endblock %}
 {% block content %}
-<h1>Container テンプレート</h1>
+<h1>{{ t('container_templates.title') }}</h1>
 <p class="section-sub" style="margin-top:0">
-  New Container のフォームを事前入力した状態で開ける、保存済みの設定一覧です。
-  <a href="/">← ダッシュボードに戻る</a>
+  {{ t('container_templates.intro') }}
+  <a href="/">{{ t('container_templates.back_to_dashboard') }}</a>
 </p>
 
 <div class="card" style="padding: 0;">
 <table class="stack">
   <thead>
-    <tr><th>テンプレート名</th><th>イメージ</th><th>ポート</th><th>TLSの扱い</th><th></th></tr>
+    <tr><th>{{ t('container_templates.name') }}</th><th>{{ t('container_templates.image') }}</th><th>{{ t('container_templates.port') }}</th><th>{{ t('container_templates.tls_mode') }}</th><th></th></tr>
   </thead>
   <tbody>
     {% for tpl in container_templates %}
     <tr>
-      <td data-label="テンプレート名">{{ tpl.label }}</td>
-      <td data-label="イメージ" class="mono" style="font-size:0.8rem;color:var(--text-secondary)">{{ tpl.image or '—' }}</td>
-      <td data-label="ポート" class="mono" style="font-size:0.85rem">{{ tpl.port or '—' }}</td>
-      <td data-label="TLSの扱い">
-        {% if tpl.tls_mode == 'passthrough' %}パススルー{% else %}終端{% endif %}
+      <td data-label="{{ t('container_templates.name') }}">{{ tpl.label }}</td>
+      <td data-label="{{ t('container_templates.image') }}" class="mono" style="font-size:0.8rem;color:var(--text-secondary)">{{ tpl.image or '—' }}</td>
+      <td data-label="{{ t('container_templates.port') }}" class="mono" style="font-size:0.85rem">{{ tpl.port or '—' }}</td>
+      <td data-label="{{ t('container_templates.tls_mode') }}">
+        {% if tpl.tls_mode == 'passthrough' %}{{ t('container_templates.passthrough') }}{% else %}{{ t('container_templates.terminate') }}{% endif %}
       </td>
       <td style="white-space:nowrap">
-        <a href="/containers/new?template={{ tpl.key }}" class="btn btn-sm primary">このテンプレートで作成</a>
-        <form method="post" action="/containers/templates/{{ tpl.key }}/delete" style="display:inline" onsubmit="return confirm('このテンプレート「{{ tpl.label }}」を削除しますか？（元になったアプリ自体は削除されません）');">
+        <a href="/containers/new?template={{ tpl.key }}" class="btn btn-sm primary">{{ t('container_templates.create_from') }}</a>
+        <form method="post" action="/containers/templates/{{ tpl.key }}/delete" style="display:inline" data-confirm="{{ t('container_templates.delete_confirm', label=tpl.label) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn-sm btn-danger" title="このテンプレートを削除" style="margin-left:0.6rem">削除</button>
+          <button type="submit" class="btn-sm btn-danger" title="{{ t('container_templates.delete_title') }}" style="margin-left:0.6rem">{{ t('container_templates.delete') }}</button>
         </form>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="empty-state">テンプレートはまだありません。</td></tr>
+    <tr><td colspan="5" class="empty-state">{{ t('container_templates.empty') }}</td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
 
 <p class="section-sub" style="margin-top:1rem">
-  既存のContainerアプリの編集画面にある「📦 この設定をテンプレートとして保存」から、新しいテンプレートを追加できます。
+  {{ t('container_templates.footnote') }}
 </p>
 {% endblock %}

@@ -98,6 +98,27 @@ document.addEventListener('DOMContentLoaded', initContainerYamlEditor);
 const CONTAINER_NAME = {{ edit_name | tojson if is_edit else 'null' }};
 const EXEC_RESIZE_PREFIX = '\x01';
 let execWs = null;
+const I18N = {
+  sidecarName: {{ t('sidecar.name_label') | tojson }},
+  sidecarImage: {{ t('sidecar.image_label') | tojson }},
+  sidecarCommand: {{ t('sidecar.command_label') | tojson }},
+  sidecarCommandPh: {{ t('sidecar.command_placeholder') | tojson }},
+  sidecarEnv: {{ t('sidecar.env_label') | tojson }},
+  sidecarEnvPh: {{ t('sidecar.env_placeholder') | tojson }},
+  sidecarCpu: {{ t('sidecar.cpu_limit') | tojson }},
+  sidecarMem: {{ t('sidecar.mem_limit') | tojson }},
+  sidecarUseStorage: {{ t('sidecar.use_storage') | tojson }},
+  sidecarMountPath: {{ t('sidecar.mount_path') | tojson }},
+  sidecarMountPathDesc: {{ t('sidecar.mount_path_desc') | tojson }},
+  sidecarRemove: {{ t('sidecar.remove') | tojson }},
+  extraPortExternalPh: {{ t('extra_port.external_placeholder') | tojson }},
+  extraPortTargetPh: {{ t('extra_port.target_placeholder') | tojson }},
+  delete: {{ t('common.delete') | tojson }},
+  noPods: {{ t('container_exec.no_pods') | tojson }},
+  connecting: {{ t('container_exec.connecting') | tojson }},
+  disconnected: {{ t('container_exec.disconnected') | tojson }},
+  execError: {{ t('container_exec.error') | tojson }},
+};
 
 // --- サイドカーコンテナ (同一Pod内の追加コンテナ、例: WordPress+MySQL) ---
 let sidecarSeq = 0;
@@ -111,43 +132,41 @@ function addSidecar(data) {
   div.innerHTML = `
     <div class="wrap-row">
       <div>
-        <label>コンテナ名</label>
+        <label>${I18N.sidecarName}</label>
         <input class="mono sidecar-name" pattern="[a-z0-9\\-]+" placeholder="mysql" value="${escapeHtmlAttr(data.name || '')}">
       </div>
       <div>
-        <label>イメージ</label>
+        <label>${I18N.sidecarImage}</label>
         <input class="mono sidecar-image" placeholder="mysql:8" value="${escapeHtmlAttr(data.image || '')}">
       </div>
     </div>
-    <label>起動コマンド (任意)</label>
-    <input class="mono sidecar-command" placeholder="空欄ならイメージの既定のコマンド" value="${escapeHtmlAttr(data.command || '')}" style="margin-bottom:0.6rem">
-    <label>環境変数 (任意)</label>
-    <textarea class="mono sidecar-env" placeholder="KEY=VALUE (1行に1つ)">${escapeHtml(data.env || '')}</textarea>
+    <label>${I18N.sidecarCommand}</label>
+    <input class="mono sidecar-command" placeholder="${escapeHtmlAttr(I18N.sidecarCommandPh)}" value="${escapeHtmlAttr(data.command || '')}" style="margin-bottom:0.6rem">
+    <label>${I18N.sidecarEnv}</label>
+    <textarea class="mono sidecar-env" placeholder="${escapeHtmlAttr(I18N.sidecarEnvPh)}">${escapeHtml(data.env || '')}</textarea>
     <div class="wrap-row" style="margin-top:0.6rem">
       <div>
-        <label>CPU上限</label>
+        <label>${I18N.sidecarCpu}</label>
         <input class="mono sidecar-cpu" placeholder="200m" value="${escapeHtmlAttr(data.cpu_limit || '200m')}">
       </div>
       <div>
-        <label>メモリ上限</label>
+        <label>${I18N.sidecarMem}</label>
         <input class="mono sidecar-mem" placeholder="256Mi" value="${escapeHtmlAttr(data.mem_limit || '256Mi')}">
       </div>
     </div>
     <label class="sidecar-storage-label">
       <input type="checkbox" class="sidecar-storage" ${data.storage ? 'checked' : ''} onchange="this.closest('.sidecar-block').querySelector('.sidecar-mount-path-row').style.display = this.checked ? '' : 'none'">
-      永続ストレージを使う
+      ${I18N.sidecarUseStorage}
     </label>
     <div class="sidecar-mount-path-row" style="display:${data.storage ? '' : 'none'}; margin-top:0.5rem">
-      <label>マウント先パス</label>
+      <label>${I18N.sidecarMountPath}</label>
       <input class="mono sidecar-mount-path" placeholder="/data" value="${escapeHtmlAttr(data.mount_path || '/data')}">
       <p class="section-sub" style="margin:0.3rem 0 0">
-        このコンテナのイメージが実際にデータを書き込む先を指定してください
-        (例: MySQL/MariaDBなら <code>/var/lib/mysql</code>、PostgreSQLなら <code>/var/lib/postgresql/data</code>)。
-        コンテナごとに専用のサブディレクトリが自動的に割り当てられます。
+        ${I18N.sidecarMountPathDesc}
       </p>
     </div>
     <div style="text-align:right; margin-top:0.6rem">
-      <button type="button" class="btn-sm" onclick="this.closest('.sidecar-block').remove()">このサイドカーを削除</button>
+      <button type="button" class="btn-sm" onclick="this.closest('.sidecar-block').remove()">${I18N.sidecarRemove}</button>
     </div>
   `;
   document.getElementById('sidecars-list').appendChild(div);
@@ -169,14 +188,14 @@ function addExtraPort(data) {
   // different value in.
   const targetDiffers = data.target_port != null && data.target_port !== data.port;
   div.innerHTML = `
-    <input class="mono extra-port-number" type="number" min="1" max="65535" placeholder="外部: 4500" value="${escapeHtmlAttr(data.port != null ? String(data.port) : '')}">
+    <input class="mono extra-port-number" type="number" min="1" max="65535" placeholder="${escapeHtmlAttr(I18N.extraPortExternalPh)}" value="${escapeHtmlAttr(data.port != null ? String(data.port) : '')}">
     <span class="section-sub" style="margin:0">→</span>
-    <input class="mono extra-port-target" type="number" min="1" max="65535" placeholder="転送先 (同じなら空欄)" value="${escapeHtmlAttr(targetDiffers ? String(data.target_port) : '')}">
+    <input class="mono extra-port-target" type="number" min="1" max="65535" placeholder="${escapeHtmlAttr(I18N.extraPortTargetPh)}" value="${escapeHtmlAttr(targetDiffers ? String(data.target_port) : '')}">
     <select class="extra-port-protocol">
       <option value="udp" ${data.protocol === 'udp' ? 'selected' : ''}>UDP</option>
       <option value="tcp" ${data.protocol === 'tcp' ? 'selected' : ''}>TCP</option>
     </select>
-    <button type="button" class="btn-sm" onclick="this.closest('.extra-port-row').remove()">削除</button>
+    <button type="button" class="btn-sm" onclick="this.closest('.extra-port-row').remove()">${I18N.delete}</button>
   `;
   document.getElementById('extra-ports-list').appendChild(div);
 }
@@ -275,7 +294,7 @@ function loadPodOptions() {
       if (pods.length === 0) {
         const opt = document.createElement('option');
         opt.value = '';
-        opt.textContent = '(Podが見つかりません)';
+        opt.textContent = I18N.noPods;
         select.appendChild(opt);
       } else if (pods.some((p) => p.name === previous)) {
         select.value = previous;
@@ -339,7 +358,7 @@ function connectExec() {
   const containerQuery = container ? `&container=${encodeURIComponent(container)}` : '';
   const url = `${scheme}//${location.host}/containers/${encodeURIComponent(CONTAINER_NAME)}/exec?pod=${encodeURIComponent(pod)}${containerQuery}`;
   execWs = new WebSocket(url);
-  setExecStatus(`接続中: ${pod}${container ? ' / ' + container : ''}`);
+  setExecStatus(`${I18N.connecting}${pod}${container ? ' / ' + container : ''}`);
   execWs.onopen = () => {
     setExecButtons(true);
     window.__execFit.fit();
@@ -347,11 +366,11 @@ function connectExec() {
   };
   execWs.onmessage = (event) => { window.__execTerm.write(event.data); };
   execWs.onclose = () => {
-    setExecStatus('切断されました');
+    setExecStatus(I18N.disconnected);
     setExecButtons(false);
     execWs = null;
   };
-  execWs.onerror = () => { setExecStatus('接続エラー'); };
+  execWs.onerror = () => { setExecStatus(I18N.execError); };
 }
 
 function disconnectExec() {

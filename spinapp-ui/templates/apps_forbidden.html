@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ja">
+<html lang="{{ current_lang }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>アクセスが拒否されました</title>
+<title>{{ t('forbidden.title') }}</title>
 <style>
   :root { color-scheme: light; --page:#f9f9f7; --surface-1:#fcfcfb; --text-primary:#0b0b0b;
     --text-secondary:#52514e; --border:rgba(11,11,11,0.10); --series-1:#2a78d6; --radius:12px; }
@@ -26,10 +26,10 @@
 </head>
 <body>
   <div class="card">
-    <h1>アクセスが拒否されました</h1>
-    <p><strong>{{ user.name }}</strong> としてログインしていますが、「{{ app_name }}」の閲覧を許可されたユーザーの一覧に含まれていません。</p>
-    <p>アプリの管理者に、このアプリのOIDC認証設定に許可するユーザーとして追加してもらってください。</p>
-    <p><a href="/_spindeck/oidc/login?switch=1&next={{ next_url | urlencode }}">別のユーザーでログインし直す</a></p>
+    <h1>{{ t('forbidden.title') }}</h1>
+    <p>{{ t('forbidden.apps_message_pre') }}<strong>{{ user.name }}</strong>{{ t('forbidden.apps_message_mid') }}{{ app_name }}{{ t('forbidden.apps_message_post') }}</p>
+    <p>{{ t('forbidden.apps_hint') }}</p>
+    <p><a href="/_spindeck/oidc/login?switch=1&next={{ next_url | urlencode }}">{{ t('forbidden.apps_relogin') }}</a></p>
   </div>
 </body>
 </html>

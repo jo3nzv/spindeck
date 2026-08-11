@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="{{ current_lang }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -93,13 +93,11 @@
     padding: 0.9rem 1.1rem 1.1rem; border-top: 1px solid var(--border);
     display: flex; flex-direction: column; gap: 0.5rem;
   }
-  .ns-tag {
-    font-size: 0.78rem; color: var(--text-muted);
-    background: var(--surface-2); padding: 0.2rem 0.55rem; border-radius: 6px;
-    width: fit-content;
+  .user-row { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; font-size: 0.82rem; }
+  .user-row span {
+    color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 100%; text-align: right;
   }
-  .user-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; }
-  .user-row span { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .version-tag { font-size: 0.72rem; color: var(--text-muted); }
 
   main { flex: 1; min-width: 0; max-width: 1100px; padding: 1.75rem 2rem 4rem; }
@@ -224,6 +222,28 @@
     background: none; border: 1px solid var(--status-good); color: var(--status-good);
   }
   button.btn-outline-success:hover { background: rgba(12,163,12,0.10); }
+  /* Muted pill badge, not the default blue submit button -- button[type=
+     "submit"] above has equal specificity to a single class, so (per
+     this file's own note on that) the override needs both the button
+     element and to come later in the cascade. */
+  .lang-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  }
+  .lang-toggle-group {
+    display: flex; gap: 0.15rem; background: var(--surface-2);
+    border-radius: 6px; padding: 0.15rem; width: fit-content;
+  }
+  .lang-toggle form { margin: 0; }
+  button.lang-toggle-btn {
+    all: unset; cursor: pointer; color: var(--text-muted);
+    padding: 0.15rem 0.5rem; font-size: 0.72rem; font-family: inherit;
+    border-radius: 4px;
+  }
+  button.lang-toggle-btn:hover { color: var(--text-secondary); }
+  button.lang-toggle-btn.active {
+    background: var(--surface-1); color: var(--text-primary); font-weight: 600; cursor: default;
+    box-shadow: 0 1px 2px var(--border);
+  }
   /* Plain class (works on <a> too, unlike button.btn-outline-success
      above): a neutral bordered look for secondary actions like "export"
      links, which aren't a <button> element and don't warrant the
@@ -285,14 +305,25 @@
       <a href="/config" class="{{ 'active' if active_nav == 'config' else '' }}">⚙️ Config</a>
     </nav>
     <div class="sidebar-footer">
-      <span class="ns-tag">ns: {{ namespace }}</span>
       {% if current_user %}
       <div class="user-row">
         <span title="{{ current_user.email or '' }}">{{ current_user.name }}</span>
-        <a href="/logout">ログアウト</a>
+        <a href="/logout">{{ t('common.logout') }}</a>
       </div>
       {% endif %}
-      <span class="version-tag">Ver. {{ spindeck_version }}</span>
+      <div class="lang-toggle">
+        <div class="lang-toggle-group">
+          <form method="post" action="/set-lang/ja">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="lang-toggle-btn {{ 'active' if current_lang == 'ja' else '' }}" {{ 'disabled' if current_lang == 'ja' else '' }}>日本語</button>
+          </form>
+          <form method="post" action="/set-lang/en">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="lang-toggle-btn {{ 'active' if current_lang == 'en' else '' }}" {{ 'disabled' if current_lang == 'en' else '' }}>EN</button>
+          </form>
+        </div>
+        <span class="version-tag">Ver. {{ spindeck_version }}</span>
+      </div>
     </div>
   </aside>
   <main class="{{ 'wide' if active_nav in ('new', 'new_site', 'new_proxy', 'new_cron', 'new_container', 'dashboard', 'analytics', 'config') else '' }}">

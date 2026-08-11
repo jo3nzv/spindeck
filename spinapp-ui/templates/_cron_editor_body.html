@@ -1,26 +1,19 @@
 <p class="section-sub" style="margin-top:0">
-  標準ライブラリのみで動く Python/bash スクリプトを、cron スケジュールで定期実行します。
-  ネットワークアクセスは可能ですが <code>pip install</code> はできません
-  (bashには <code>curl</code> も入っていないため、代わりに
-  <code>download URL 保存先パス [User-Agent]</code> 関数が常に使えます。
-  中身はpython3のurllibを1回呼ぶだけです)。1回の実行は5分でタイムアウトし、
-  リトライや多重実行 (前回の実行が終わっていない場合はスキップ) は行いません。
-  ピアノードにはコードとスケジュールのみ同期され、常に無効状態で作成されます
-  (同じ処理がノード数分実行されるのを防ぐため) — 各ピアで実行したい場合はそのノード側で個別に有効化してください。
+  {{ t('cron_editor.intro') | safe }}
 </p>
 <div class="wrap-row" style="display:flex; align-items:flex-end; gap:0.4rem; margin-bottom:0.4rem">
   <div style="max-width:280px; flex:1">
-    <label>Name{% if is_edit %} (既存 Cron Job の更新 - 変更不可){% endif %}</label>
+    <label>Name{% if is_edit %}{{ t('cron_editor.name_readonly_note') }}{% endif %}</label>
     <input id="cron-name-input" form="cron-form" name="name" pattern="[a-z0-9\-]+" placeholder="my-cron-job" required
            value="{{ form_name or '' }}" {{ 'readonly' if is_edit else '' }}>
   </div>
   <div style="max-width:220px; flex:1">
-    <label>Schedule (cron式)</label>
+    <label>{{ t('cron_editor.schedule_label') }}</label>
     <input form="cron-form" name="schedule" class="mono" placeholder="*/5 * * * *" required
            value="{{ form_schedule or '' }}">
   </div>
   <div style="max-width:140px">
-    <label>言語</label>
+    <label>{{ t('cron_editor.language_label') }}</label>
     <select id="cron-language-select" form="cron-form" name="language">
       <option value="python" {{ 'selected' if form_language != 'bash' else '' }}>Python</option>
       <option value="bash" {{ 'selected' if form_language == 'bash' else '' }}>bash</option>
@@ -30,20 +23,20 @@
     <label style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0; white-space:nowrap">
       <input type="checkbox" form="cron-form" name="enabled" value="1" style="width:auto; height:auto"
              {{ 'checked' if form_enabled else '' }}>
-      有効
+      {{ t('cron_editor.enabled') }}
     </label>
   </div>
 </div>
 <p class="section-sub" style="margin-top:0; margin-bottom:1rem">
-  例: <code>*/5 * * * *</code> (5分ごと) ・ <code>0 3 * * *</code> (毎日3時) ・ <code>@hourly</code> ・ <code>@daily</code>
+  {{ t('cron_editor.schedule_examples') | safe }}
 </p>
 
 <div class="etabs">
-  <button type="button" id="etab-code" class="active" onclick="showEditorPanel('code')">コード</button>
-  <button type="button" id="etab-mail" onclick="showEditorPanel('mail')">✉️ メール送信</button>
+  <button type="button" id="etab-code" class="active" onclick="showEditorPanel('code')">{{ t('common.tab_code') }}</button>
+  <button type="button" id="etab-mail" onclick="showEditorPanel('mail')">{{ t('cron_editor.tab_mail') }}</button>
   {% if is_edit %}
-  <button type="button" id="etab-history" onclick="showEditorPanel('history')">🕒 実行履歴</button>
-  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">📜 ログ</button>
+  <button type="button" id="etab-history" onclick="showEditorPanel('history')">{{ t('cron_editor.tab_history') }}</button>
+  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">{{ t('common.tab_logs') }}</button>
   {% endif %}
 </div>
 
@@ -59,30 +52,24 @@
 
 <div id="epanel-mail" class="epanel">
   <p class="section-sub" style="margin-top:0">
-    From/Toを入力すると、コードタブの中で <code>SUBJECT</code>/<code>BODY</code>変数を
-    自分で組み立てたうえで、Pythonなら <code>send_mail(TO_ADDR, SUBJECT, BODY)</code>、
-    bashなら <code>send_mail "$TO_ADDR" "$SUBJECT" "$BODY"</code> を呼ぶだけでメール送信できるように
-    なります (SMTPサーバー自体の接続情報は<a href="/config">/config</a>で設定してください)。
-    bash側のsend_mailは内部でpython3を1回呼び出します (curl入りの軽量イメージが手元にないため)。
-    使わない場合はここは両方とも空欄のままでOKです。
+    {{ t('cron_editor.mail_intro') | safe }}
   </p>
   <label>From</label>
   <input form="cron-form" name="mail_from" placeholder="sender@example.com" value="{{ form_mail_from or '' }}">
   <label style="margin-top:0.7rem">To</label>
   <input form="cron-form" name="mail_to" placeholder="to@example.com" value="{{ form_mail_to or '' }}">
   <button type="button" id="mail-insert-snippet-btn" class="btn-sm" style="margin-top:0.7rem">
-    send_mail(...) をコードタブに書き込む
+    {{ t('cron_editor.insert_snippet') }}
   </button>
 
-  <label style="margin-top:1.2rem">使用例 (Python)</label>
-  <pre class="log" style="margin-bottom:0.9rem">SUBJECT = "件名"
-BODY = "本文"
+  <label style="margin-top:1.2rem">{{ t('cron_editor.example_python') }}</label>
+  <pre class="log" style="margin-bottom:0.9rem">SUBJECT = "{{ t('cron_editor.example_subject') }}"
+BODY = "{{ t('cron_editor.example_body') }}"
 send_mail(TO_ADDR, SUBJECT, BODY)</pre>
 
-  <label>使用例 (bash — URL取得してメール送信)</label>
+  <label>{{ t('cron_editor.example_bash') }}</label>
   <p class="section-sub" style="margin-top:-0.3rem">
-    <code>download</code> はcurlが無い代わりのヘルパーで、bashジョブなら
-    メール送信タブを使っていなくても常に使えます (中身はpython3のurllib)。
+    {{ t('cron_editor.download_helper_desc') | safe }}
   </p>
   <pre class="log" style="margin-bottom:0">download "https://api.example.com/status.json" "/tmp/status.json"
 COUNT=$(python3 -c "import json; print(json.load(open('/tmp/status.json'))['count'])")
@@ -95,14 +82,14 @@ send_mail "$TO_ADDR" "$SUBJECT" "$BODY"</pre>
 <div id="epanel-history" class="epanel">
   <div class="card" style="padding:0">
     <table class="stack">
-      <thead><tr><th>Job</th><th>開始</th><th>完了</th><th>状態</th></tr></thead>
+      <thead><tr><th>{{ t('cron_editor.job') }}</th><th>{{ t('cron_editor.started') }}</th><th>{{ t('cron_editor.completed') }}</th><th>{{ t('cron_editor.state') }}</th></tr></thead>
       <tbody>
         {% for r in runs %}
         <tr>
-          <td data-label="Job" class="mono" style="font-size:0.8rem">{{ r.name }}</td>
-          <td data-label="開始">{{ r.started or '-' }}</td>
-          <td data-label="完了">{{ r.completed or '-' }}</td>
-          <td data-label="状態">
+          <td data-label="{{ t('cron_editor.job') }}" class="mono" style="font-size:0.8rem">{{ r.name }}</td>
+          <td data-label="{{ t('cron_editor.started') }}">{{ r.started or '-' }}</td>
+          <td data-label="{{ t('cron_editor.completed') }}">{{ r.completed or '-' }}</td>
+          <td data-label="{{ t('cron_editor.state') }}">
             {% if r.state == 'succeeded' %}
             <span class="badge ok"><span class="dot"></span>Succeeded</span>
             {% elif r.state == 'failed' %}
@@ -115,7 +102,7 @@ send_mail "$TO_ADDR" "$SUBJECT" "$BODY"</pre>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="empty-state">まだ実行されていません。</td></tr>
+        <tr><td colspan="4" class="empty-state">{{ t('cron_editor.never_run') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
