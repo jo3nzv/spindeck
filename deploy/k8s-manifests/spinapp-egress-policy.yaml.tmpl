@@ -1,0 +1,125 @@
+# Egress restriction for every Pod in the "default" namespace -- this is
+# where every SpinApp (JS/Proxy/static-site) and every CronJob deployed via
+# the console lands, i.e. every workload an authenticated console user
+# (potentially any Keycloak-realm user, unless /config's console access
+# allow-list is populated) can create the *content* of. Without this, such
+# a workload can reach anything the node itself can reach: every other
+# namespace's ClusterIP services (the k8s API server, cert-manager's
+# webhook, spin-operator's webhook, metrics-server), the node's own other
+# ports, and -- if this cluster is ever run on a cloud VM -- the cloud
+# metadata endpoint (169.254.169.254) for IAM credential theft. See
+# docs/TECHNICAL_NOTES.md's "Egress hardening" for the fuller writeup of
+# why this was needed even though JS/Proxy apps' Wasm sandbox and the
+# app-level checks (check_backend_host_not_internal() for Proxy apps)
+# already narrow this somewhat -- this is the actual enforcement layer,
+# since Wasm's allowed_outbound_hosts is wide open by design and
+# app-level checks can't see what a hostname resolves to at request time.
+#
+# policyTypes is Egress only -- Ingress is untouched, so Traefik (a
+# different namespace) can still reach every app's Service normally.
+#
+# Scoped to this cluster's own Pod CIDR + Service CIDR (where the actual
+# cluster-internal pivot targets live: the k8s API, webhooks,
+# metrics-server, other apps' ClusterIPs) plus link-local/metadata and
+# loopback -- NOT the full RFC1918 space. Blocking all of RFC1918 would
+# also cut off Proxy apps' Backend Origin pointing at a legitimate LAN
+# backend (e.g. a NAS, an internal API, a self-hosted service elsewhere
+# on the LAN) -- that's a real, intentional use of the Proxy feature, not
+# something to treat as equivalent to reaching the cluster's own
+# internals. The container registry (also on this node's LAN IP,
+# port 5000) stays inaccessible from pods regardless of this policy's
+# ranges, because registry.yaml binds it to 127.0.0.1 only -- that fix,
+# not this NetworkPolicy, is what protects it, which is why leaving the
+# wider LAN open here doesn't reopen that specific risk.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spinapp-egress-restrict
+  namespace: default
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # DNS must be explicitly allowed -- kube-dns's ClusterIP (10.43.0.10)
+    # would otherwise fall inside the 10.0.0.0/8 block below, and without
+    # this every other egress rule becomes useless (nothing resolves).
+    #
+    # Matched by CoreDNS's actual Pod (namespaceSelector + podSelector),
+    # NOT by an ipBlock on the Service ClusterIP -- verified empirically
+    # in this cluster that an ipBlock: 10.43.0.10/32 rule silently never
+    # matches (DNS stayed broken even with that rule present), almost
+    # certainly because this CNI's egress enforcement sees the packet
+    # after kube-proxy's ClusterIP->PodIP DNAT, by which point the
+    # destination is CoreDNS's actual Pod IP, not the ClusterIP anymore.
+    # A label selector matches the real Pod IP regardless of DNAT, and
+    # survives CoreDNS's Pod IP changing across restarts/rescheduling.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Everything else: allow the public internet AND the wider LAN
+    # (legitimate Proxy-app use), deny only this cluster's own Pod/Service
+    # CIDRs plus link-local/metadata/loopback/this node's own IP.
+    # 10.42.0.0/16 is k3s's default cluster-wide Pod CIDR (this single
+    # node's own slice is 10.42.0.0/24, but the /16 is blocked in case
+    # more nodes join later); 10.43.0.0/16 is the Service CIDR (DNS to
+    # kube-dns's Pod excepted above). Note this leaves the *rest* of
+    # 10.0.0.0/8, all of 172.16.0.0/12 (including whatever /24 this
+    # node's own LAN segment happens to fall in), and all of
+    # 192.168.0.0/16 reachable -- see the header comment above for why
+    # that's an intentional tradeoff, not an oversight.
+    #
+    # __NODE_IP__/32 (this node's own LAN IP, substituted by install.sh
+    # from `ip -4 route get 1.1.1.1` at install time -- see that script)
+    # is excepted-from-the-except (i.e. still blocked) despite otherwise
+    # allowing this node's own /24: k3s's own apiserver isn't a Pod, so
+    # `kubernetes.default.svc`'s ClusterIP (10.43.0.1, nominally already
+    # blocked above) actually DNATs to this node's real IP on :6443 --
+    # confirmed live that this bypassed the Service-CIDR block entirely
+    # (same DNAT-vs-NetworkPolicy ordering issue as the DNS rule above),
+    # so the *apiserver* only stays blocked as long as this specific /32
+    # does too. This also means any other host-bound port (not just the
+    # registry, which additionally protects itself by binding
+    # 127.0.0.1-only) is unreachable from pods.
+    #
+    # Multi-node clusters: add one `- <node-ip>/32` line per node here
+    # (install.sh only substitutes the node it runs on).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.42.0.0/16
+              - 10.43.0.0/16
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+              - __NODE_IP__/32
+    # This whole IPv6 rule (up to the matching end-marker comment below)
+    # is removed entirely by install.sh on a single-stack (IPv4-only, the
+    # default) install; kept only when SPINDECK_DUAL_STACK was used, with
+    # the node-IPv6 placeholder substituted the same way the IPv4 one is
+    # above. This exists at all because a dual-stack Pod can actually
+    # originate IPv6 egress traffic -- the IPv4-only ipBlock above has no
+    # effect on it whatsoever, so without this the whole point of this
+    # NetworkPolicy (containing self-service code/config as a network
+    # pivot) would have an IPv6-shaped hole in it on any dual-stack
+    # install.
+    # __IPV6_BLOCK_START__
+    - to:
+        - ipBlock:
+            cidr: ::/0
+            except:
+              - fd42::/56       # Pod CIDR (IPv6) -- see install.sh
+              - fd43::/112      # Service CIDR (IPv6) -- see install.sh
+              - fe80::/10       # link-local
+              - ::1/128         # loopback
+              - __NODE_IPV6__/128
+    # __IPV6_BLOCK_END__

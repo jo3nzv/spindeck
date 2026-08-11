@@ -1,0 +1,24 @@
+<div id="epanel-logs" class="epanel">
+  <div class="card" style="padding:0">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:0.7rem 1rem; border-bottom:1px solid var(--border)">
+      <span class="section-sub" style="margin:0">直近のPodログ (<code>kubectl logs</code>, 最大500行)</span>
+      <button type="button" id="logs-refresh-btn" class="btn-sm">更新</button>
+    </div>
+    <pre id="logs-output" class="log" style="margin:0; border-radius:0; max-height:600px">読み込み中...</pre>
+  </div>
+</div>
+<script>
+function refreshLogs() {
+  const out = document.getElementById('logs-output');
+  if (!out) return;
+  out.textContent = '読み込み中...';
+  fetch(`/apps/${encodeURIComponent({{ edit_name | tojson }})}/logs`)
+    .then((r) => r.text())
+    .then((text) => { out.textContent = text || '(ログが空です)'; })
+    .catch(() => { out.textContent = 'ログの取得に失敗しました。'; });
+}
+document.addEventListener('DOMContentLoaded', function () {
+  const btn = document.getElementById('logs-refresh-btn');
+  if (btn) btn.addEventListener('click', refreshLogs);
+});
+</script>

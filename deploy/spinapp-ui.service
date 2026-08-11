@@ -1,0 +1,16 @@
+[Unit]
+Description=SpinApp registration web UI
+After=network.target k3s.service
+Wants=k3s.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/spinapp-ui/env
+ExecStart=/opt/spinapp-ui/venv/bin/python /opt/spinapp-ui/app.py
+Restart=on-failure
+RestartSec=3
+User=root
+WorkingDirectory=/opt/spinapp-ui
+
+[Install]
+WantedBy=multi-user.target

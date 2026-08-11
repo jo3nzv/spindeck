@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Container を編集: {{ edit_name }}{% endblock %}
+{% block extra_head %}
+{% include "_container_editor_assets.html" %}
+{% endblock %}
+{% block content %}
+<h1>Container を編集: {{ form_name }}
+  <a href="/export/container/{{ form_name }}" class="btn outline btn-sm" style="vertical-align:middle">⬇️ エクスポート</a>
+</h1>
+
+{% if errors %}
+<div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}</div>
+{% endif %}
+
+<div class="card">
+{% include "_container_editor_body.html" %}
+</div>
+
+<div class="card" style="padding:0.7rem 1rem; margin-bottom:1rem">
+  <form method="post" action="/containers/{{ form_name }}/save_as_template" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin:0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label style="margin:0; font-weight:400; white-space:nowrap">📦 この設定をテンプレートとして保存:</label>
+    <input name="label" placeholder="テンプレート名 (空欄なら「{{ form_name }}」)" style="max-width:220px">
+    <button type="submit" class="btn-sm">保存</button>
+  </form>
+</div>
+
+<div class="card danger-zone">
+  <h3 style="margin-top:0">危険な操作</h3>
+  <p class="section-sub">このコンテナと永続ストレージのデータを削除します。この操作は取り消せません。</p>
+  <form method="post" action="/containers/{{ form_name }}/delete"
+        data-confirm="Delete {{ form_name }}? 永続ストレージのデータも完全に削除されます。">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="del-btn">delete {{ form_name }}</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,114 @@
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs/loader.js"></script>
+<style>
+  .etabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; background: var(--surface-2); padding: 0.25rem; border-radius: 10px; width: fit-content; max-width: 100%; overflow-x: auto; }
+  .etabs button {
+    border: none; background: transparent; color: var(--text-secondary);
+    border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+    white-space: nowrap; flex: none;
+  }
+  .etabs button.active { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 1px 2px var(--border); }
+  .epanel { display: none; }
+  .epanel.active { display: block; }
+
+  #monaco-container {
+    height: 600px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  .preview-bar { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
+  .preview-bar .preview-base { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+  .preview-bar input { flex: 1; min-width: 6rem; padding: 0.35rem 0.55rem; font-size: 0.82rem; }
+  .preview-bar button, .preview-bar a.btn-like { padding: 0.35rem 0.7rem; font-size: 0.8rem; white-space: nowrap; }
+  #preview-frame {
+    width: 100%; height: 600px; border: 1px solid var(--border); border-radius: 8px; background: white;
+  }
+  .preview-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+  @media (max-width: 720px) {
+    #monaco-container, #preview-frame { height: 420px; }
+    .preview-bar { flex-wrap: wrap; }
+    .preview-bar .preview-base { flex-basis: 100%; }
+  }
+</style>
+<script>
+const EXTERNAL_HOST = {{ external_host | tojson }};
+
+function currentPreviewUrl() {
+  const nameEl = document.getElementById('js-name-input');
+  if (!nameEl) return null;
+  const name = nameEl.value.trim();
+  const pathEl = document.getElementById('preview-path');
+  const path = (pathEl && pathEl.value) || '/';
+  const cleanPath = path.startsWith('/') ? path : '/' + path;
+  if (!name) return null;
+  return `https://${EXTERNAL_HOST}/${name}${cleanPath}`;
+}
+
+function refreshPreview() {
+  const url = currentPreviewUrl();
+  const frame = document.getElementById('preview-frame');
+  const openLink = document.getElementById('preview-open');
+  const baseLabel = document.getElementById('preview-base-label');
+  const name = document.getElementById('js-name-input').value.trim();
+  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : '(name を入力してください)';
+  if (url) {
+    frame.src = url;
+    openLink.href = url;
+    openLink.style.opacity = '1';
+  } else {
+    frame.src = 'about:blank';
+    openLink.removeAttribute('href');
+    openLink.style.opacity = '0.4';
+  }
+}
+
+function showEditorPanel(which) {
+  document.getElementById('epanel-code').classList.toggle('active', which === 'code');
+  document.getElementById('epanel-preview').classList.toggle('active', which === 'preview');
+  document.getElementById('epanel-auth').classList.toggle('active', which === 'auth');
+  document.getElementById('etab-code').classList.toggle('active', which === 'code');
+  document.getElementById('etab-preview').classList.toggle('active', which === 'preview');
+  document.getElementById('etab-auth').classList.toggle('active', which === 'auth');
+  const logsPanel = document.getElementById('epanel-logs');
+  const logsTab = document.getElementById('etab-logs');
+  if (logsPanel) logsPanel.classList.toggle('active', which === 'logs');
+  if (logsTab) logsTab.classList.toggle('active', which === 'logs');
+  if (which === 'code' && window.monacoEditor) {
+    setTimeout(() => window.monacoEditor.layout(), 0);
+  } else if (which === 'preview') {
+    refreshPreview();
+  } else if (which === 'logs' && typeof refreshLogs === 'function') {
+    refreshLogs();
+  }
+}
+
+function initJsEditor() {
+  document.getElementById('js-name-input').addEventListener('input', refreshPreview);
+  document.getElementById('preview-path').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); refreshPreview(); }
+  });
+  document.getElementById('preview-reload').addEventListener('click', refreshPreview);
+  refreshPreview();
+
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    window.monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value: document.getElementById('code-textarea').value,
+      language: 'javascript',
+      theme: isDark ? 'vs-dark' : 'vs',
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 13,
+      scrollBeyondLastLine: false,
+      tabSize: 2,
+    });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+      monaco.editor.setTheme(e.matches ? 'vs-dark' : 'vs');
+    });
+    document.getElementById('js-form').addEventListener('submit', function () {
+      document.getElementById('code-textarea').value = window.monacoEditor.getValue();
+    });
+    if (window.monacoEditor) setTimeout(() => window.monacoEditor.layout(), 0);
+  });
+}
+document.addEventListener('DOMContentLoaded', initJsEditor);
+</script>

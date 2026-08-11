@@ -1,0 +1,102 @@
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs/loader.js"></script>
+<style>
+  .etabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; background: var(--surface-2); padding: 0.25rem; border-radius: 10px; width: fit-content; max-width: 100%; overflow-x: auto; }
+  .etabs button {
+    border: none; background: transparent; color: var(--text-secondary);
+    border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+    white-space: nowrap; flex: none;
+  }
+  .etabs button.active { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 1px 2px var(--border); }
+  .epanel { display: none; }
+  .epanel.active { display: block; }
+
+  #monaco-container {
+    height: 600px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  @media (max-width: 720px) {
+    #monaco-container { height: 420px; }
+  }
+</style>
+<script>
+function showEditorPanel(which) {
+  document.getElementById('epanel-code').classList.toggle('active', which === 'code');
+  document.getElementById('etab-code').classList.toggle('active', which === 'code');
+  document.getElementById('epanel-mail').classList.toggle('active', which === 'mail');
+  document.getElementById('etab-mail').classList.toggle('active', which === 'mail');
+  const historyPanel = document.getElementById('epanel-history');
+  const historyTab = document.getElementById('etab-history');
+  if (historyPanel) historyPanel.classList.toggle('active', which === 'history');
+  if (historyTab) historyTab.classList.toggle('active', which === 'history');
+  const logsPanel = document.getElementById('epanel-logs');
+  const logsTab = document.getElementById('etab-logs');
+  if (logsPanel) logsPanel.classList.toggle('active', which === 'logs');
+  if (logsTab) logsTab.classList.toggle('active', which === 'logs');
+  if (which === 'code' && window.monacoEditor) {
+    setTimeout(() => window.monacoEditor.layout(), 0);
+  } else if (which === 'logs' && typeof refreshLogs === 'function') {
+    refreshLogs();
+  }
+}
+
+const CRON_DEFAULT_CODE = {
+  python: "import datetime\n\nprint(f\"hello from cron at {datetime.datetime.now()}\")\n",
+  bash: "echo \"hello from cron at $(date)\"\n",
+};
+const CRON_MAIL_SNIPPET = {
+  python: 'send_mail(TO_ADDR, SUBJECT, BODY)\n',
+  bash: 'send_mail "$TO_ADDR" "$SUBJECT" "$BODY"\n',
+};
+
+function monacoLanguageFor(lang) {
+  return lang === 'bash' ? 'shell' : 'python';
+}
+
+function initCronEditor() {
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const langSelect = document.getElementById('cron-language-select');
+    window.monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value: document.getElementById('code-textarea').value,
+      language: monacoLanguageFor(langSelect ? langSelect.value : 'python'),
+      theme: isDark ? 'vs-dark' : 'vs',
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 13,
+      scrollBeyondLastLine: false,
+      tabSize: 4,
+    });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+      monaco.editor.setTheme(e.matches ? 'vs-dark' : 'vs');
+    });
+    document.getElementById('cron-form').addEventListener('submit', function () {
+      document.getElementById('code-textarea').value = window.monacoEditor.getValue();
+    });
+    if (window.monacoEditor) setTimeout(() => window.monacoEditor.layout(), 0);
+
+    if (langSelect) {
+      langSelect.addEventListener('change', function () {
+        const lang = this.value;
+        monaco.editor.setModelLanguage(window.monacoEditor.getModel(), monacoLanguageFor(lang));
+        // Only auto-swap the placeholder if the editor still holds one of
+        // the (other language's) canned defaults -- never touch code the
+        // user actually wrote.
+        const current = window.monacoEditor.getValue();
+        if (Object.values(CRON_DEFAULT_CODE).includes(current)) {
+          window.monacoEditor.setValue(CRON_DEFAULT_CODE[lang] || '');
+        }
+      });
+    }
+
+    const insertBtn = document.getElementById('mail-insert-snippet-btn');
+    if (insertBtn) {
+      insertBtn.addEventListener('click', function () {
+        const lang = langSelect ? langSelect.value : 'python';
+        window.monacoEditor.setValue(CRON_MAIL_SNIPPET[lang] || CRON_MAIL_SNIPPET.python);
+        showEditorPanel('code');
+      });
+    }
+  });
+}
+document.addEventListener('DOMContentLoaded', initCronEditor);
+</script>

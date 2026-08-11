@@ -1,0 +1,62 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  failurePolicy: reinstall
+  valuesContent: |-
+    additionalArguments:
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--accesslog.fields.headers.defaultmode=drop"
+      - "--accesslog.filepath=__TRAEFIK_LOG_DIR__/access.log"
+    deployment:
+      additionalVolumes:
+        - name: traefik-access-logs
+          hostPath:
+            # __TRAEFIK_LOG_DIR__ is substituted by install.sh --
+            # /var/log/traefik by default, or
+            # $SPINDECK_DATA_DIR/traefik-logs if that env var was set at
+            # install time (see install.sh's own comments).
+            path: __TRAEFIK_LOG_DIR__
+            type: DirectoryOrCreate
+    additionalVolumeMounts:
+      - name: traefik-access-logs
+        # Must match the directory portion of --accesslog.filepath above
+        # (and hostPath.path) exactly -- this is the path *inside* the
+        # container the hostPath volume lands on; if this doesn't match
+        # where Traefik is actually told to write, the access log ends up
+        # on some non-persistent path inside the container instead of the
+        # mounted volume, and the host-side directory stays silently
+        # empty forever (confirmed live: this was hardcoded to
+        # /var/log/traefik here while __TRAEFIK_LOG_DIR__ above correctly
+        # became a custom SPINDECK_DATA_DIR path, so nothing ever actually
+        # landed in the mounted volume on a host using SPINDECK_DATA_DIR).
+        mountPath: __TRAEFIK_LOG_DIR__
+    service:
+      spec:
+        externalTrafficPolicy: Local
+        # __IP_FAMILY_POLICY__ is substituted by install.sh -- "SingleStack"
+        # by default (identical to k8s's own default when this field is
+        # omitted entirely, i.e. a no-op for existing IPv4-only installs),
+        # or "PreferDualStack" when SPINDECK_DUAL_STACK was used at install
+        # time. "Prefer" rather than "Require": if IPv6 turns out to be
+        # unusable on this host for some reason, the Service still comes up
+        # on IPv4 rather than failing to provision at all.
+        ipFamilyPolicy: __IP_FAMILY_POLICY__
+    ports:
+      web:
+        forwardedHeaders:
+          trustedIPs:
+            # fd42::/56 is this repo's IPv6 Pod CIDR choice when
+            # SPINDECK_DUAL_STACK is used (see install.sh) -- harmless to
+            # list unconditionally, since it simply never matches any
+            # request's source on a single-stack (IPv4-only) install.
+            - "10.42.0.0/16"
+            - "fd42::/56"
+      websecure:
+        forwardedHeaders:
+          trustedIPs:
+            - "10.42.0.0/16"
+            - "fd42::/56"

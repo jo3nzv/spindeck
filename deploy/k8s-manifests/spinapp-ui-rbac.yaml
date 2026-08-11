@@ -1,0 +1,112 @@
+# Dedicated, minimally-scoped identity for the spinapp-ui process itself,
+# used instead of the raw /etc/rancher/k3s/k3s.yaml admin kubeconfig
+# (system:masters -- full cluster-admin). Everything spinapp-ui's own code
+# manages lives in one namespace and a fixed list of resource kinds --
+# scoping to exactly that means a bug or compromise in the
+# spinapp-ui process itself can't reach any other namespace or any
+# cluster-scoped resource (Nodes, other namespaces' Secrets, ClusterRoles,
+# CRDs, ...), even though the process still runs as host root.
+#
+# install.sh applies this to the namespace SPINAPP_UI_NAMESPACE resolves to
+# (default: "default") and builds /etc/spinapp-ui/kubeconfig.yaml from the
+# resulting ServiceAccount token -- see install.sh's "kubeconfig for
+# spinapp-ui" step.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spinapp-ui
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spinapp-ui
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["services", "secrets", "configmaps", "endpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["cronjobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["core.spinkube.dev"]
+  resources: ["spinapps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["traefik.io"]
+  resources: ["ingressroutes", "ingressroutetcps", "middlewares", "tlsstores"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spinapp-ui
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: spinapp-ui
+  namespace: default
+roleRef:
+  kind: Role
+  name: spinapp-ui
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spinapp-ui-token
+  namespace: default
+  annotations:
+    kubernetes.io/service-account.name: spinapp-ui
+type: kubernetes.io/service-account-token
+---
+# Separate Role+RoleBinding, in kube-system rather than default, for
+# sync_traefik_web_exposure()'s one specific need: reading/updating the
+# k3s-managed `traefik` HelmChartConfig so port 80/443's external
+# exposure can follow TRAEFIK_SCHEME/CONTAINER_PASSTHROUGH_ENABLED. RBAC
+# Roles are namespace-scoped to where they're *defined*, not where the subject
+# ServiceAccount lives, so this couldn't be folded into the Role above --
+# a namespace-`default` Role can never grant access to a kube-system
+# object. `resourceNames: ["traefik"]` narrows this to exactly that one
+# object (not every HelmChartConfig in the cluster), and no `list`/
+# `watch`/`create`/`delete` -- this code only ever GETs and PATCHes
+# (via `kubectl apply` on an object that always already exists) the one
+# object it already knows the name of.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spinapp-ui-traefik-config
+  namespace: kube-system
+rules:
+- apiGroups: ["helm.cattle.io"]
+  resources: ["helmchartconfigs"]
+  resourceNames: ["traefik"]
+  verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spinapp-ui-traefik-config
+  namespace: kube-system
+subjects:
+- kind: ServiceAccount
+  name: spinapp-ui
+  namespace: default
+roleRef:
+  kind: Role
+  name: spinapp-ui-traefik-config
+  apiGroup: rbac.authorization.k8s.io

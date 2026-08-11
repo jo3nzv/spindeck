@@ -1,0 +1,36 @@
+{{ template "base" . }}
+
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.spin]
+  runtime_type = "io.containerd.spin.v2"
+[plugins.'io.containerd.cri.v1.runtime'.containerd.runtimes.spin.options]
+  SystemdCgroup = true
+
+# containerd's Transfer Service (default image puller since containerd v2.1)
+# only unpacks the host's default platform (linux/amd64) unless told otherwise.
+# Spin/Wasm images are published as wasi/wasm, so without this entry the CRI
+# pull reports success but never creates the wasm layer's snapshot, causing
+# "parent snapshot ... does not exist" when the pod is created.
+[plugins.'io.containerd.transfer.v1.local']
+  [[plugins.'io.containerd.transfer.v1.local'.unpack_config]]
+    platform = "linux/amd64"
+    snapshotter = "overlayfs"
+    differ = "walking"
+
+  [[plugins.'io.containerd.transfer.v1.local'.unpack_config]]
+    platform = "wasi/wasm"
+    snapshotter = "overlayfs"
+    differ = "walking"
+
+# Tell the CRI images plugin which platform to resolve/pull for the "spin"
+# runtime handler, since the host's default platform is linux/amd64, not
+# wasi/wasm (the platform Spin app images are published for).
+[plugins.'io.containerd.cri.v1.images'.runtime_platforms.spin]
+  platform = "wasi/wasm"
+  snapshotter = "overlayfs"
+
+# Fall back to the legacy (pre-2.1) direct image pull path instead of the
+# Transfer Service, since the wasi/wasm platform unpack via Transfer Service
+# is not creating the base-layer snapshot for the spin runtime on this
+# containerd build.
+[plugins.'io.containerd.cri.v1.images']
+  use_local_image_pull = true

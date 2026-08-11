@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpinDeck — ログイン</title>
+<style>
+  :root { color-scheme: light; --page:#f9f9f7; --surface-1:#fcfcfb; --text-primary:#0b0b0b;
+    --text-secondary:#52514e; --border:rgba(11,11,11,0.10); --series-1:#2a78d6; --radius:12px;
+    --status-critical:#d03b3b; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19;
+      --text-primary:#fff; --text-secondary:#c3c2b7; --border:rgba(255,255,255,0.10); --series-1:#3987e5; }
+  }
+  :root[data-theme="dark"] { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19; --text-primary:#fff;
+    --text-secondary:#c3c2b7; --border:rgba(255,255,255,0.10); --series-1:#3987e5; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page);
+    color: var(--text-primary); display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; margin: 0; padding: 1.5rem; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 2rem; max-width: 380px; width: 100%; }
+  h1 { font-size: 1.15rem; margin: 0 0 1.25rem; }
+  .error { background: rgba(208,59,59,0.10); color: var(--status-critical); padding: 0.7rem 0.9rem;
+    border-radius: 8px; margin-bottom: 1rem; font-size: 0.88rem; }
+  label { font-size: 0.82rem; color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 0.3rem; }
+  input { width: 100%; padding: 0.55rem 0.7rem; font-size: 0.9rem; background: var(--page);
+    color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px;
+    box-sizing: border-box; height: 2.35rem; margin-bottom: 0.9rem; }
+  input:focus { outline: 2px solid var(--series-1); outline-offset: 1px; }
+  button { width: 100%; padding: 0.6rem 1.1rem; font-size: 0.9rem; font-weight: 500; cursor: pointer;
+    border-radius: 8px; border: 1px solid var(--series-1); background: var(--series-1); color: white;
+    font-family: inherit; }
+  button:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚡ SpinDeck ログイン</h1>
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="login-username">ユーザー名</label>
+      <input id="login-username" name="username" autocomplete="username" required autofocus>
+      <label for="login-password">パスワード</label>
+      <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit">ログイン</button>
+    </form>
+  </div>
+</body>
+</html>

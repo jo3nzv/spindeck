@@ -1,0 +1,24 @@
+{
+  "name": "hello-js",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:debug": "node build.mjs --debug",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@bytecodealliance/jco": "^1.17.6",
+    "esbuild": "^0.25.8",
+    "mkdirp": "^3.0.1"
+  },
+  "dependencies": {
+    "@spinframework/wasi-http-proxy": "^2.0.0",
+    "cheerio": "^1.2.0",
+    "itty-router": "^5.0.18"
+  }
+}

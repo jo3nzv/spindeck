@@ -1,0 +1,125 @@
+<p class="section-sub" style="margin-top:0">
+  標準ライブラリのみで動く Python/bash スクリプトを、cron スケジュールで定期実行します。
+  ネットワークアクセスは可能ですが <code>pip install</code> はできません
+  (bashには <code>curl</code> も入っていないため、代わりに
+  <code>download URL 保存先パス [User-Agent]</code> 関数が常に使えます。
+  中身はpython3のurllibを1回呼ぶだけです)。1回の実行は5分でタイムアウトし、
+  リトライや多重実行 (前回の実行が終わっていない場合はスキップ) は行いません。
+  ピアノードにはコードとスケジュールのみ同期され、常に無効状態で作成されます
+  (同じ処理がノード数分実行されるのを防ぐため) — 各ピアで実行したい場合はそのノード側で個別に有効化してください。
+</p>
+<div class="wrap-row" style="display:flex; align-items:flex-end; gap:0.4rem; margin-bottom:0.4rem">
+  <div style="max-width:280px; flex:1">
+    <label>Name{% if is_edit %} (既存 Cron Job の更新 - 変更不可){% endif %}</label>
+    <input id="cron-name-input" form="cron-form" name="name" pattern="[a-z0-9\-]+" placeholder="my-cron-job" required
+           value="{{ form_name or '' }}" {{ 'readonly' if is_edit else '' }}>
+  </div>
+  <div style="max-width:220px; flex:1">
+    <label>Schedule (cron式)</label>
+    <input form="cron-form" name="schedule" class="mono" placeholder="*/5 * * * *" required
+           value="{{ form_schedule or '' }}">
+  </div>
+  <div style="max-width:140px">
+    <label>言語</label>
+    <select id="cron-language-select" form="cron-form" name="language">
+      <option value="python" {{ 'selected' if form_language != 'bash' else '' }}>Python</option>
+      <option value="bash" {{ 'selected' if form_language == 'bash' else '' }}>bash</option>
+    </select>
+  </div>
+  <div style="padding-bottom:0.55rem">
+    <label style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0; white-space:nowrap">
+      <input type="checkbox" form="cron-form" name="enabled" value="1" style="width:auto; height:auto"
+             {{ 'checked' if form_enabled else '' }}>
+      有効
+    </label>
+  </div>
+</div>
+<p class="section-sub" style="margin-top:0; margin-bottom:1rem">
+  例: <code>*/5 * * * *</code> (5分ごと) ・ <code>0 3 * * *</code> (毎日3時) ・ <code>@hourly</code> ・ <code>@daily</code>
+</p>
+
+<div class="etabs">
+  <button type="button" id="etab-code" class="active" onclick="showEditorPanel('code')">コード</button>
+  <button type="button" id="etab-mail" onclick="showEditorPanel('mail')">✉️ メール送信</button>
+  {% if is_edit %}
+  <button type="button" id="etab-history" onclick="showEditorPanel('history')">🕒 実行履歴</button>
+  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">📜 ログ</button>
+  {% endif %}
+</div>
+
+<div id="epanel-code" class="epanel active">
+  <div id="monaco-container"></div>
+  <form id="cron-form" method="post" action="/crons" style="margin-top:0.75rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="mode" value="{{ 'edit' if is_edit else 'create' }}">
+    <textarea name="code" id="code-textarea" style="display:none">{{ form_code if form_code is not none else default_code }}</textarea>
+    <button type="submit" style="width:100%">{{ 'Update & Redeploy' if is_edit else 'Deploy' }}</button>
+  </form>
+</div>
+
+<div id="epanel-mail" class="epanel">
+  <p class="section-sub" style="margin-top:0">
+    From/Toを入力すると、コードタブの中で <code>SUBJECT</code>/<code>BODY</code>変数を
+    自分で組み立てたうえで、Pythonなら <code>send_mail(TO_ADDR, SUBJECT, BODY)</code>、
+    bashなら <code>send_mail "$TO_ADDR" "$SUBJECT" "$BODY"</code> を呼ぶだけでメール送信できるように
+    なります (SMTPサーバー自体の接続情報は<a href="/config">/config</a>で設定してください)。
+    bash側のsend_mailは内部でpython3を1回呼び出します (curl入りの軽量イメージが手元にないため)。
+    使わない場合はここは両方とも空欄のままでOKです。
+  </p>
+  <label>From</label>
+  <input form="cron-form" name="mail_from" placeholder="sender@example.com" value="{{ form_mail_from or '' }}">
+  <label style="margin-top:0.7rem">To</label>
+  <input form="cron-form" name="mail_to" placeholder="to@example.com" value="{{ form_mail_to or '' }}">
+  <button type="button" id="mail-insert-snippet-btn" class="btn-sm" style="margin-top:0.7rem">
+    send_mail(...) をコードタブに書き込む
+  </button>
+
+  <label style="margin-top:1.2rem">使用例 (Python)</label>
+  <pre class="log" style="margin-bottom:0.9rem">SUBJECT = "件名"
+BODY = "本文"
+send_mail(TO_ADDR, SUBJECT, BODY)</pre>
+
+  <label>使用例 (bash — URL取得してメール送信)</label>
+  <p class="section-sub" style="margin-top:-0.3rem">
+    <code>download</code> はcurlが無い代わりのヘルパーで、bashジョブなら
+    メール送信タブを使っていなくても常に使えます (中身はpython3のurllib)。
+  </p>
+  <pre class="log" style="margin-bottom:0">download "https://api.example.com/status.json" "/tmp/status.json"
+COUNT=$(python3 -c "import json; print(json.load(open('/tmp/status.json'))['count'])")
+SUBJECT="status check: $COUNT items"
+BODY="fetched at $(date)"
+send_mail "$TO_ADDR" "$SUBJECT" "$BODY"</pre>
+</div>
+
+{% if is_edit %}
+<div id="epanel-history" class="epanel">
+  <div class="card" style="padding:0">
+    <table class="stack">
+      <thead><tr><th>Job</th><th>開始</th><th>完了</th><th>状態</th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td data-label="Job" class="mono" style="font-size:0.8rem">{{ r.name }}</td>
+          <td data-label="開始">{{ r.started or '-' }}</td>
+          <td data-label="完了">{{ r.completed or '-' }}</td>
+          <td data-label="状態">
+            {% if r.state == 'succeeded' %}
+            <span class="badge ok"><span class="dot"></span>Succeeded</span>
+            {% elif r.state == 'failed' %}
+            <span class="badge bad"><span class="dot"></span>Failed</span>
+            {% elif r.state == 'running' %}
+            <span class="badge">Running</span>
+            {% else %}
+            <span class="badge">Pending</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty-state">まだ実行されていません。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% include "_cron_logs_tab.html" %}
+{% endif %}

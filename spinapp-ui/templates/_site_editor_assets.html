@@ -1,0 +1,332 @@
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs/loader.js"></script>
+<style>
+  .etabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; background: var(--surface-2); padding: 0.25rem; border-radius: 10px; width: fit-content; max-width: 100%; overflow-x: auto; }
+  .etabs button {
+    border: none; background: transparent; color: var(--text-secondary);
+    border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+    white-space: nowrap; flex: none;
+  }
+  .etabs button.active { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 1px 2px var(--border); }
+  .epanel { display: none; }
+  .epanel.active { display: block; }
+
+  .site-editor-row { display: flex; gap: 0; height: 600px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .site-file-list { width: 220px; flex: none; background: var(--surface-2); overflow-y: auto; border-right: 1px solid var(--border); }
+  .site-file-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
+    padding: 0.5rem 0.7rem; font-size: 0.82rem; cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    border-bottom: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .site-file-row:hover { background: var(--surface-1); }
+  .site-file-row.active { background: var(--surface-1); color: var(--text-primary); font-weight: 600; }
+  .site-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .site-file-del {
+    border: none; background: none; color: var(--status-critical); cursor: pointer;
+    font-size: 0.9rem; padding: 0 0.2rem; line-height: 1; flex: none;
+  }
+  .site-file-add {
+    width: 100%; padding: 0.5rem 0.7rem; font-size: 0.8rem; text-align: left;
+    border: none; background: none; color: var(--series-1); cursor: pointer; border-top: 1px solid var(--border);
+  }
+  .site-file-name.binary::after { content: " (binary)"; color: var(--text-muted); font-size: 0.75em; }
+  #site-monaco-container { flex: 1; min-width: 0; }
+  #site-binary-preview {
+    flex: 1; min-width: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0.75rem; background: var(--page); color: var(--text-secondary); font-size: 0.85rem; padding: 1rem;
+  }
+  #site-binary-preview.active { display: flex; }
+  #site-binary-preview img { max-width: 100%; max-height: 440px; border-radius: 8px; box-shadow: 0 1px 4px var(--border); }
+  #site-binary-preview .binary-icon { font-size: 2.5rem; }
+
+  .preview-bar { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
+  .preview-bar .preview-base { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+  .preview-bar input { flex: 1; min-width: 6rem; padding: 0.35rem 0.55rem; font-size: 0.82rem; }
+  .preview-bar button, .preview-bar a.btn-like { padding: 0.35rem 0.7rem; font-size: 0.8rem; white-space: nowrap; }
+  #preview-frame {
+    width: 100%; height: 600px; border: 1px solid var(--border); border-radius: 8px; background: white;
+  }
+  .preview-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+  @media (max-width: 720px) {
+    /* File list + Monaco side-by-side needs more width than a phone has;
+       stack the file list above the editor instead, each scrolling on its
+       own axis rather than squeezing both into an unusable sliver. */
+    .site-editor-row { flex-direction: column; height: auto; }
+    .site-file-list { width: 100%; max-height: 160px; border-right: none; border-bottom: 1px solid var(--border); }
+    #site-monaco-container, #site-binary-preview { height: 420px; }
+    #preview-frame { height: 420px; }
+    .preview-bar { flex-wrap: wrap; }
+    .preview-bar .preview-base { flex-basis: 100%; }
+  }
+</style>
+<script>
+const EXTERNAL_HOST = {{ external_host | tojson }};
+const DEFAULT_SITE_FILES = {
+  "index.html": "<!doctype html>\n<html>\n<head>\n  <meta charset=\"utf-8\">\n  <title>My Site</title>\n</head>\n<body>\n  <h1>Hello from my site!</h1>\n</body>\n</html>\n"
+};
+
+const INITIAL_SITE_FILES = {{ (site_files or {}) | tojson }};
+let siteFiles = Object.keys(INITIAL_SITE_FILES).length
+  ? INITIAL_SITE_FILES
+  : Object.assign({}, DEFAULT_SITE_FILES);
+let currentPath = Object.keys(siteFiles).sort()[0];
+const siteModels = {};
+
+// Must match BINARY_SITE_EXTENSIONS in app.py -- content for these
+// extensions is always base64 on the wire (both ways), never shown in
+// Monaco. Images additionally get an inline preview.
+const BINARY_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp',
+  'pdf', 'woff', 'woff2', 'ttf', 'otf', 'eot',
+  'zip', 'gz', 'mp3', 'mp4', 'webm',
+]);
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp']);
+const MIME_BY_EXT = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', ico: 'image/x-icon', bmp: 'image/bmp',
+};
+
+function extOf(path) {
+  return path.includes('.') ? path.split('.').pop().toLowerCase() : '';
+}
+
+function isBinaryPath(path) {
+  return BINARY_EXTENSIONS.has(extOf(path));
+}
+
+function langFor(path) {
+  const map = {
+    html: 'html', htm: 'html', css: 'css', js: 'javascript', mjs: 'javascript',
+    php: 'php', json: 'json', svg: 'xml', xml: 'xml', md: 'markdown',
+  };
+  return map[extOf(path)] || 'plaintext';
+}
+
+function currentPreviewUrl() {
+  const nameEl = document.getElementById('site-name-input');
+  if (!nameEl) return null;
+  const name = nameEl.value.trim();
+  const pathEl = document.getElementById('preview-path');
+  const path = (pathEl && pathEl.value) || '/';
+  const cleanPath = path.startsWith('/') ? path : '/' + path;
+  if (!name) return null;
+  return `https://${EXTERNAL_HOST}/${name}${cleanPath}`;
+}
+
+function refreshPreview() {
+  const url = currentPreviewUrl();
+  const frame = document.getElementById('preview-frame');
+  const openLink = document.getElementById('preview-open');
+  const baseLabel = document.getElementById('preview-base-label');
+  const name = document.getElementById('site-name-input').value.trim();
+  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : '(name を入力してください)';
+  if (url) {
+    frame.src = url;
+    openLink.href = url;
+    openLink.style.opacity = '1';
+  } else {
+    frame.src = 'about:blank';
+    openLink.removeAttribute('href');
+    openLink.style.opacity = '0.4';
+  }
+}
+
+function showEditorPanel(which) {
+  document.getElementById('epanel-code').classList.toggle('active', which === 'code');
+  document.getElementById('epanel-preview').classList.toggle('active', which === 'preview');
+  document.getElementById('epanel-auth').classList.toggle('active', which === 'auth');
+  document.getElementById('etab-code').classList.toggle('active', which === 'code');
+  document.getElementById('etab-preview').classList.toggle('active', which === 'preview');
+  document.getElementById('etab-auth').classList.toggle('active', which === 'auth');
+  const logsPanel = document.getElementById('epanel-logs');
+  const logsTab = document.getElementById('etab-logs');
+  if (logsPanel) logsPanel.classList.toggle('active', which === 'logs');
+  if (logsTab) logsTab.classList.toggle('active', which === 'logs');
+  if (which === 'code' && window.siteEditor) {
+    setTimeout(() => window.siteEditor.layout(), 0);
+  } else if (which === 'preview') {
+    refreshPreview();
+  } else if (which === 'logs' && typeof refreshLogs === 'function') {
+    refreshLogs();
+  }
+}
+
+function syncCurrentModel() {
+  if (currentPath && siteModels[currentPath] && !isBinaryPath(currentPath)) {
+    siteFiles[currentPath] = siteModels[currentPath].getValue();
+  }
+}
+
+function renderFileList() {
+  const list = document.getElementById('site-file-list');
+  list.querySelectorAll('.site-file-row').forEach((el) => el.remove());
+  const addBtn = document.getElementById('site-file-add-btn');
+  const paths = Object.keys(siteFiles).sort();
+  paths.forEach((path) => {
+    const row = document.createElement('div');
+    row.className = 'site-file-row' + (path === currentPath ? ' active' : '');
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = path;
+    nameSpan.className = 'site-file-name' + (isBinaryPath(path) ? ' binary' : '');
+    nameSpan.addEventListener('click', () => selectFile(path));
+    row.appendChild(nameSpan);
+    if (paths.length > 1) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'site-file-del';
+      del.textContent = '×';
+      del.title = 'delete file';
+      del.addEventListener('click', (e) => { e.stopPropagation(); removeFile(path); });
+      row.appendChild(del);
+    }
+    list.insertBefore(row, addBtn);
+  });
+}
+
+function showBinaryPreview(path) {
+  const panel = document.getElementById('site-binary-preview');
+  const ext = extOf(path);
+  panel.innerHTML = '';
+  if (IMAGE_EXTENSIONS.has(ext)) {
+    const img = document.createElement('img');
+    img.src = `data:${MIME_BY_EXT[ext]};base64,${siteFiles[path]}`;
+    img.alt = path;
+    panel.appendChild(img);
+  } else {
+    const icon = document.createElement('div');
+    icon.className = 'binary-icon';
+    icon.textContent = '📄';
+    panel.appendChild(icon);
+    const label = document.createElement('div');
+    const bytes = Math.round((siteFiles[path] || '').length * 0.75);
+    label.textContent = `${path} (${(bytes / 1024).toFixed(1)} KB) — バイナリファイルのためプレビューはありません`;
+    panel.appendChild(label);
+  }
+}
+
+function selectFile(path) {
+  syncCurrentModel();
+  currentPath = path;
+  const monacoEl = document.getElementById('site-monaco-container');
+  const previewEl = document.getElementById('site-binary-preview');
+  if (isBinaryPath(path)) {
+    monacoEl.style.display = 'none';
+    previewEl.classList.add('active');
+    showBinaryPreview(path);
+  } else {
+    previewEl.classList.remove('active');
+    monacoEl.style.display = '';
+    if (!siteModels[path]) {
+      siteModels[path] = monaco.editor.createModel(siteFiles[path] || '', langFor(path));
+    }
+    window.siteEditor.setModel(siteModels[path]);
+    setTimeout(() => window.siteEditor.layout(), 0);
+  }
+  renderFileList();
+}
+
+function addFile() {
+  const input = prompt('ファイルパスを入力してください (例: sub/page.html)');
+  if (!input) return;
+  const clean = input.trim().replace(/^\/+/, '');
+  if (!clean || !/^[a-zA-Z0-9][a-zA-Z0-9_./-]*$/.test(clean) || clean.split('/').includes('..')) {
+    alert('不正なファイルパスです。');
+    return;
+  }
+  if (Object.prototype.hasOwnProperty.call(siteFiles, clean)) {
+    alert('同名のファイルが既にあります。');
+    return;
+  }
+  if (isBinaryPath(clean)) {
+    alert('この拡張子は「アップロード」から追加してください。');
+    return;
+  }
+  syncCurrentModel();
+  siteFiles[clean] = '';
+  selectFile(clean);
+}
+
+function uploadFiles(fileList) {
+  syncCurrentModel();
+  const files = Array.from(fileList);
+  let remaining = files.length;
+  if (!remaining) return;
+  files.forEach((file) => {
+    let path = file.name.replace(/^\/+/, '');
+    if (Object.prototype.hasOwnProperty.call(siteFiles, path)) {
+      const stem = path.includes('.') ? path.slice(0, path.lastIndexOf('.')) : path;
+      const ext = path.includes('.') ? path.slice(path.lastIndexOf('.')) : '';
+      path = `${stem}-${Date.now()}${ext}`;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (isBinaryPath(path)) {
+        // reader.result is "data:<mime>;base64,<data>" -- keep only the data.
+        siteFiles[path] = reader.result.split(',', 2)[1] || '';
+      } else {
+        siteFiles[path] = reader.result;
+      }
+      remaining -= 1;
+      if (remaining === 0) selectFile(path);
+      else renderFileList();
+    };
+    if (isBinaryPath(path)) reader.readAsDataURL(file);
+    else reader.readAsText(file);
+  });
+}
+
+function removeFile(path) {
+  if (Object.keys(siteFiles).length <= 1) return;
+  if (!confirm(`${path} を削除しますか?`)) return;
+  if (siteModels[path]) {
+    siteModels[path].dispose();
+    delete siteModels[path];
+  }
+  delete siteFiles[path];
+  if (currentPath === path) {
+    selectFile(Object.keys(siteFiles).sort()[0]);
+  } else {
+    renderFileList();
+  }
+}
+
+function initSiteEditor() {
+  document.getElementById('site-name-input').addEventListener('input', refreshPreview);
+  document.getElementById('preview-path').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); refreshPreview(); }
+  });
+  document.getElementById('preview-reload').addEventListener('click', refreshPreview);
+  document.getElementById('site-file-add-btn').addEventListener('click', addFile);
+  document.getElementById('site-file-upload-btn').addEventListener('click', function () {
+    document.getElementById('site-file-upload-input').click();
+  });
+  document.getElementById('site-file-upload-input').addEventListener('change', function (e) {
+    uploadFiles(e.target.files);
+    e.target.value = '';
+  });
+  refreshPreview();
+
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    window.siteEditor = monaco.editor.create(document.getElementById('site-monaco-container'), {
+      theme: isDark ? 'vs-dark' : 'vs',
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 13,
+      scrollBeyondLastLine: false,
+      tabSize: 2,
+    });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+      monaco.editor.setTheme(e.matches ? 'vs-dark' : 'vs');
+    });
+    selectFile(currentPath);
+    document.getElementById('site-form').addEventListener('submit', function () {
+      syncCurrentModel();
+      document.getElementById('files-json').value = JSON.stringify(siteFiles);
+    });
+    setTimeout(() => window.siteEditor.layout(), 0);
+  });
+}
+document.addEventListener('DOMContentLoaded', initSiteEditor);
+</script>

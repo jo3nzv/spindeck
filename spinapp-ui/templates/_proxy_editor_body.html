@@ -1,0 +1,91 @@
+<p class="section-sub" style="margin-top:0">
+  別のオリジンへリバースプロキシします。パスごとに「そのまま転送」「404にする」「別パスの内容に差し替える」を選べます
+  (差し替えは、そのパスへのリクエストを backend 上の別パスの内容で応答する、という意味です)。
+  一致するルールがなければそのまま転送されます。サブパス配信でレスポンス中の絶対パスを書き換えたい場合は
+  「書き換えルール」を使ってください。
+</p>
+<div class="wrap-row" style="display:flex; align-items:flex-end; gap:0.4rem; margin-bottom:1rem">
+  {% with form_id = "proxy-form" %}
+  {% include "_fqdn_field.html" %}
+  {% endwith %}
+  <span class="mono" style="padding-bottom:0.6rem; color:var(--text-muted)">/</span>
+  <div style="max-width:340px; flex:1">
+    <label>Name{% if is_edit %} (既存プロキシの更新 - 変更不可){% endif %}</label>
+    <input id="proxy-name-input" form="proxy-form" name="name" pattern="[a-z0-9\-]+" placeholder="my-proxy" required
+           value="{{ form_name or '' }}" {{ 'readonly' if is_edit else '' }}>
+  </div>
+</div>
+
+<div class="etabs">
+  <button type="button" id="etab-config" class="active" onclick="showEditorPanel('config')">設定</button>
+  <button type="button" id="etab-preview" onclick="showEditorPanel('preview')">プレビュー</button>
+  <button type="button" id="etab-auth" onclick="showEditorPanel('auth')">🔒 認証</button>
+  {% if is_edit %}
+  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">📜 ログ</button>
+  {% endif %}
+</div>
+
+<div id="epanel-config" class="epanel active">
+  <form id="proxy-form" method="post" action="/proxies">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="mode" value="{{ 'edit' if is_edit else 'create' }}">
+    <input type="hidden" name="rules" id="rules-json">
+    <input type="hidden" name="rewrites" id="rewrites-json">
+
+    <label>Backend Origin</label>
+    <input name="backend_origin" placeholder="http://10.0.0.50:8080" required
+           value="{{ form_backend_origin or '' }}" style="margin-bottom:0.4rem">
+    <p class="section-sub" style="margin:0 0 1.1rem">
+      パスを付けずに入力すると、常にprefixを剥がしてbackendへ転送します(通常はこちら)。
+      <span class="mono">http://10.0.0.50:8080/example</span> のようにパスも付けて入力すると、
+      backendへの転送時に常にそのパスを付けます — backend側がサブパス配信対応で、自分自身の「Site URL」的な
+      設定にプレフィックス付きのURLを設定済みの場合に使ってください(自分自身の名前
+      <span class="mono">/{{ form_name or 'name' }}</span> と同じである必要はありません)。付けたパスは
+      backendの応答中のLocation/CookieのPathを書き換える際にも使われます。同じbackendを複数のプロキシアプリから
+      別々の公開パスで参照している場合(例: 管理者用と共有リンク用など)は、全てのプロキシアプリで同じパスを
+      入力してください。
+    </p>
+
+    <label>WebSocketパス（任意）</label>
+    <input name="ws_path" placeholder="/api/v1/ws" value="{{ form_ws_path or '' }}" style="margin-bottom:0.4rem">
+    <p class="section-sub" style="margin:0 0 1.1rem">
+      指定すると、このパス（Name の後に続く部分。例: <span class="mono">/{{ form_name or 'name' }}/api/v1/ws</span>）
+      へのWebSocket接続だけは、Spin/Wasmコンポーネントを経由せずTraefikから直接 Backend Origin へ転送します
+      (SpinのHTTPコンポーネントはWebSocketへのアップグレード/双方向通信に対応していないため)。不要なら空欄のままにしてください。
+    </p>
+
+    <label>パスルール（上から順に評価、どれにも一致しなければそのまま転送）</label>
+    <div id="rules-list"></div>
+    <button type="button" id="rule-add-btn" class="add-row-btn">+ ルール追加</button>
+
+    <label style="margin-top:1.4rem">書き換えルール（上級者向け・任意）</label>
+    <p class="section-sub" style="margin-top:-0.3rem">
+      text/html, text/css, JavaScript, manifest+json, application/json のレスポンス本文に対して、上から順に正規表現 (JS 構文, 全体に g フラグ付き) で
+      置換します。replace 内の <code>{% raw %}{{PREFIX}}{% endraw %}</code> はこのプロキシのパスプレフィックス
+      (<code>/{{ form_name or 'name' }}</code>) に置き換わります。<code>$1</code> などの後方参照も使えます。
+    </p>
+    <div id="rewrites-list"></div>
+    <button type="button" id="rewrite-add-btn" class="add-row-btn">+ 書き換えルール追加</button>
+
+    <button type="submit" style="width:100%; margin-top:1.6rem">{{ 'Update & Redeploy' if is_edit else 'Build & Deploy' }}</button>
+  </form>
+</div>
+
+<div id="epanel-preview" class="epanel">
+  <div class="preview-bar">
+    <span class="preview-base mono" id="preview-base-label">-</span>
+    <input id="preview-path" class="mono" value="/" placeholder="/path">
+    <button type="button" id="preview-reload">更新</button>
+    <a id="preview-open" href="#" target="_blank" class="btn-like" style="opacity:0.4">新しいタブ↗</a>
+  </div>
+  <iframe id="preview-frame" title="preview"></iframe>
+  <p class="preview-hint">デプロイ前は404になります。デプロイ後に「更新」を押してください。</p>
+</div>
+
+{% with form_id = "proxy-form" %}
+{% include "_auth_tab.html" %}
+{% endwith %}
+
+{% if is_edit %}
+{% include "_logs_tab.html" %}
+{% endif %}

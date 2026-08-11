@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+{% block title %}SpinDeck — Config{% endblock %}
+{% block content %}
+<h1 style="margin-top:0">Config</h1>
+
+{% if restarting %}
+<div class="card" style="border-color: rgba(12,163,12,0.3); color: var(--status-good); margin-bottom: 1rem;">
+  保存しました。設定を反映するためサービスを再起動しています。数秒後にページを再読み込みしてください。
+</div>
+{% elif saved %}
+<div class="card" style="border-color: rgba(12,163,12,0.3); color: var(--status-good); margin-bottom: 1rem;">保存しました。</div>
+{% endif %}
+{% if errors %}
+<div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}</div>
+{% endif %}
+
+<h2 style="margin-top:0">アプリ専用ドメイン (FQDN)</h2>
+<p class="section-sub">
+  登録したFQDNは、各アプリの編集画面でNameの横にあるドロップダウンから選択できます。
+  選択すると、そのアプリはパスだけでなく指定したFQDN（Hostヘッダー）でのアクセスでしか
+  応答しなくなります。
+  「デフォルト」に設定したFQDNは、FQDNを選んでいないアプリのURL表示・プレビューにも
+  使われます (実際のルーティングには影響しません)。
+</p>
+<div class="card" style="margin-bottom:1rem">
+  <form method="post" class="wrap-row" style="display:flex; gap:0.5rem; align-items:center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add_fqdn">
+    <input name="new_fqdn" placeholder="新しいFQDNを追加 (例: app.example.com)" required style="flex:1">
+    <button type="submit" class="btn-sm">追加</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; margin-bottom:1.75rem">
+  <table class="stack">
+    <thead><tr><th>FQDN</th><th>デフォルト</th><th></th></tr></thead>
+    <tbody>
+      {% for f in fqdns %}
+      <tr>
+        <td data-label="FQDN" class="mono">{{ f }}</td>
+        <td data-label="デフォルト">
+          {% if f == default_fqdn %}
+          <span class="badge ok" style="font-size:0.85rem"><span class="dot"></span>デフォルト</span>
+          {% else %}
+          <form method="post" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="set_default">
+            <input type="hidden" name="fqdn" value="{{ f }}">
+            <button class="btn-sm btn-outline-success" type="submit">デフォルトにする</button>
+          </form>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" data-confirm="{{ f }} を削除しますか？ (使用中のアプリは制限なしに戻ります)" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="remove_fqdn">
+            <input type="hidden" name="fqdn" value="{{ f }}">
+            <button class="btn-sm btn-danger" type="submit">delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="empty-state">登録されているFQDNはありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>HTTPS</h2>
+<p class="section-sub">
+  証明書ファイルを <span class="mono">{{ tls_cert_path }}</span> と
+  <span class="mono">{{ tls_key_path }}</span> にこのホスト上へ配置してください。
+  ファイルを差し替えるだけで、数十秒以内に自動的に反映されます(再起動不要)。
+</p>
+<div class="card" style="margin-bottom:1rem">
+  <p style="margin:0 0 0.9rem">
+    証明書:
+    {% if tls_cert_configured %}
+    <span class="badge ok" style="font-size:0.85rem"><span class="dot"></span>設定済み (有効期限: {{ tls_cert_detail }})</span>
+    {% else %}
+    <span class="badge bad" style="font-size:0.85rem"><span class="dot"></span>{{ tls_cert_detail }}</span>
+    {% endif %}
+  </p>
+  <form method="post" style="display:inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="sync_tls_now">
+    <button type="submit" class="btn-sm">今すぐ反映</button>
+  </form>
+</div>
+
+{% if route_resync_errors %}
+<div class="error">
+  一部のアプリのルート再適用に失敗しました:<br>
+  {% for name, err in route_resync_errors %}{{ name }}: {{ err }}<br>{% endfor %}
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:1.75rem">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_traefik_scheme">
+    <label style="display:flex; align-items:center; gap:0.5rem; font-weight:400; cursor:pointer; margin-bottom:0.5rem">
+      <input type="radio" name="traefik_scheme" value="http" style="width:auto" {{ 'checked' if traefik_scheme != 'https' else '' }}>
+      HTTP (80番) で待ち受ける
+    </label>
+    <label style="display:flex; align-items:center; gap:0.5rem; font-weight:400; cursor:pointer">
+      <input type="radio" name="traefik_scheme" value="https" style="width:auto" {{ 'checked' if traefik_scheme == 'https' else '' }}>
+      HTTPS (443番) で待ち受ける (上の証明書が必要です)
+    </label>
+    <p class="section-sub" style="margin:0.7rem 0 0">
+      切り替えると、既存の全アプリのルーティング設定を再適用します(アプリの再ビルドはしません)。
+      HTTPとHTTPSを同時に両方で待ち受けることは今のところできません。
+    </p>
+    <button type="submit" class="btn-sm" style="margin-top:0.9rem">保存して切り替え</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:1.75rem">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_container_passthrough">
+    <label style="display:flex; align-items:center; gap:0.5rem; font-weight:400; cursor:pointer">
+      <input type="checkbox" name="container_passthrough_enabled" style="width:auto" {{ 'checked' if container_passthrough_enabled else '' }}>
+      New Containerの「コンテナへパススルー」モードを許可する (443番を常時公開)
+    </label>
+    <p class="section-sub" style="margin:0.7rem 0 0">
+      パススルーモードのアプリは、サイト全体がHTTPのままでも常に443番で
+      待ち受ける必要があるため、オンの間は443番が常に外部公開されます
+      (HTTPモードでもです)。パススルーモードを一切使わない場合はオフに
+      してください — HTTPモードのときに443番も含めて外部公開ポートが
+      無くなります(HTTPSモードでは今まで通り443番のみ公開されます)。
+      パススルーモード中の既存アプリがある場合、オフにはできません。
+    </p>
+    <button type="submit" class="btn-sm" style="margin-top:0.9rem">保存</button>
+  </form>
+</div>
+
+<h2>New Container 用レジストリ認証</h2>
+<p class="section-sub">
+  Containerアプリのイメージは既定では認証不要の公開イメージのみ指定できます。
+  ここに登録したホストについてはログイン情報を使ってpullできるようになります
+  (Docker Hub / GHCRなど既に匿名pullできているレジストリには影響しません)。
+  既存アプリには次回保存時に反映されます。
+</p>
+<div class="card" style="margin-bottom:1rem">
+  <form method="post" class="wrap-row" style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add_container_registry">
+    <input name="registry_host" placeholder="ホスト名 (例: registry.example.com)" required style="flex:1; min-width:180px">
+    <input name="registry_username" placeholder="ユーザー名" required style="flex:1; min-width:140px">
+    <input name="registry_password" type="password" placeholder="パスワード" required style="flex:1; min-width:140px">
+    <button type="submit" class="btn-sm">追加</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; margin-bottom:1.75rem">
+  <table class="stack">
+    <thead><tr><th>ホスト</th><th>ユーザー名</th><th></th></tr></thead>
+    <tbody>
+      {% for r in container_registries %}
+      <tr>
+        <td data-label="ホスト" class="mono">{{ r.host }}</td>
+        <td data-label="ユーザー名" class="mono">{{ r.username }}</td>
+        <td>
+          <form method="post" data-confirm="{{ r.host }} のレジストリ認証情報を削除しますか？" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="remove_container_registry">
+            <input type="hidden" name="registry_host" value="{{ r.host }}">
+            <button class="btn-sm btn-danger" type="submit">delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="empty-state">登録されているレジストリ認証情報はありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-bottom:1.75rem">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_console_via_traefik">
+    <label style="display:flex; align-items:center; gap:0.5rem; font-weight:400; cursor:pointer">
+      <input type="checkbox" name="console_via_traefik" style="width:auto" {{ 'checked' if console_via_traefik else '' }}>
+      管理画面を <span class="mono">{{ traefik_scheme }}://{{ console_host or '(下のKeycloak設定のRedirect URIから自動判定)' }}/</span> で公開する
+    </label>
+    <p class="section-sub" style="margin:0.7rem 0 0">
+      このコンソール自体もTraefik(上のHTTP/HTTPS設定と同じentryPoint)経由で公開したい場合にオンに
+      してください。公開先のホスト名は、下の「Keycloak (OIDC)」セクションの Redirect URI のホスト名
+      から自動的に決まります。別のFQDNで公開したい場合は、そちらを変更してください。
+      {% if not forwardauth_host_ip_configured %}
+      有効にするには <span class="mono">SPINAPP_UI_HOST_IP</span> の設定が必要です
+      (未設定です — <span class="mono">/etc/spinapp-ui/env</span> に追記してから
+      spinapp-ui サービスを再起動してください)。
+      {% endif %}
+      HTTPSを選んでいる状態でオンにすると、8080番への直接アクセスでのログインは使えなくなります。
+    </p>
+    <button type="submit" class="btn-sm" style="margin-top:0.9rem">保存</button>
+  </form>
+</div>
+
+<h2>コンソールのログイン方式</h2>
+<p class="section-sub">
+  Keycloak (OIDC) を使うか、ローカルアカウント（ユーザー名＋パスワード、外部IDプロバイダ不要）を使うかを選びます。
+  どちらか一方のみが有効になります。切り替え自体に再起動は不要です。
+</p>
+<div class="card" style="margin-bottom:1.75rem">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_console_auth_mode">
+    <label style="display:flex; align-items:center; gap:0.4rem; font-weight:400; color:var(--text-primary)">
+      <input type="radio" name="console_auth_mode" value="oidc" style="width:auto; height:auto"
+             {{ 'checked' if console_auth_mode != 'basic' else '' }}>
+      Keycloak (OIDC) — 下のセクションで設定
+    </label>
+    <label style="display:flex; align-items:center; gap:0.4rem; font-weight:400; color:var(--text-primary); margin-top:0.5rem">
+      <input type="radio" name="console_auth_mode" value="basic" style="width:auto; height:auto"
+             {{ 'checked' if console_auth_mode == 'basic' else '' }}>
+      ローカルアカウント — 下の「ローカルアカウント管理」で設定
+    </label>
+    <button type="submit" class="btn-sm" style="margin-top:0.9rem">保存</button>
+  </form>
+</div>
+
+<h2>ローカルアカウント管理</h2>
+<p class="section-sub">
+  ログイン方式を「ローカルアカウント」にした場合に使われるアカウントです。ここでの登録・削除は
+  ログイン方式が「Keycloak」のままでも行えます（先に登録しておいてから切り替えることもできます）。
+</p>
+<div class="card" style="margin-bottom:1rem">
+  <form method="post" class="wrap-row" style="display:flex; gap:0.5rem; align-items:center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add_basic_auth_account">
+    <input name="new_basic_username" placeholder="ユーザー名" required style="flex:1">
+    <input name="new_basic_password" type="password" autocomplete="new-password" placeholder="パスワード" required style="flex:1">
+    <button type="submit" class="btn-sm">追加</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; margin-bottom:1.75rem">
+  <table class="stack">
+    <thead><tr><th>ユーザー名</th><th>パスワード変更</th><th></th></tr></thead>
+    <tbody>
+      {% for a in basic_auth_users %}
+      <tr>
+        <td data-label="ユーザー名" class="mono">{{ a.username }}{% if console_auth_mode == 'basic' and a.username == current_user.name %} (自分){% endif %}</td>
+        <td data-label="パスワード変更">
+          <form method="post" class="wrap-row" style="display:flex; gap:0.4rem; align-items:center">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="set_basic_auth_password">
+            <input type="hidden" name="target_username" value="{{ a.username }}">
+            <input name="new_password" type="password" autocomplete="new-password" placeholder="新しいパスワード" style="max-width:180px">
+            <button type="submit" class="btn-sm">変更</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" data-confirm="{{ a.username }} を削除しますか?" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="remove_basic_auth_account">
+            <input type="hidden" name="target_username" value="{{ a.username }}">
+            <button class="btn-sm btn-danger" type="submit">delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="empty-state">登録されているローカルアカウントはありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Keycloak (OIDC)</h2>
+<p class="section-sub">
+  保存すると設定を反映するためこのサービス自体が再起動します（数秒間アクセスできなくなります）。
+  再ログインは不要です。
+</p>
+<div class="card" style="margin-bottom:1.75rem">
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="save_oidc">
+  <label>Issuer</label>
+  <input name="oidc_issuer" placeholder="https://auth.example.com/realms/myrealm" value="{{ oidc_issuer }}" required>
+  <label style="margin-top:0.7rem">Client ID</label>
+  <input name="oidc_client_id" placeholder="https://admin.example.com" value="{{ oidc_client_id }}" required>
+  <label style="margin-top:0.7rem">Client Secret (変更する場合のみ入力)</label>
+  <input name="oidc_client_secret" type="password" autocomplete="new-password" placeholder="変更しない場合は空欄のまま">
+  <label style="margin-top:0.7rem">Redirect URI</label>
+  <input name="oidc_redirect_uri" placeholder="https://admin.example.com/oidc/callback" value="{{ oidc_redirect_uri }}" required>
+  <button type="submit" class="btn-sm" style="margin-top:0.9rem">保存して再起動</button>
+</form>
+</div>
+
+<h2>コンソールへのアクセス制限</h2>
+<p class="section-sub">
+  ここにユーザーを1人も登録していない場合、上記Keycloakでログインできる全ユーザーが
+  コンソール（この管理画面）を使えます。1人でも登録すると、以後はここに登録された
+  ユーザー名（Keycloakのユーザー名 / preferred_username）だけがログインできるように
+  制限されます。ロックアウトを防ぐため、ご自身のユーザー名を含めずに保存すること・
+  ご自身を削除することはできません。
+</p>
+<div class="card" style="margin-bottom:1rem">
+  <form method="post" class="wrap-row" style="display:flex; gap:0.5rem; align-items:center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add_console_user">
+    <input name="new_console_user" placeholder="Keycloakのユーザー名を追加" required style="flex:1">
+    <button type="submit" class="btn-sm">追加</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; margin-bottom:1.75rem">
+  <table class="stack">
+    <thead><tr><th>ユーザー名</th><th></th></tr></thead>
+    <tbody>
+      {% for u in console_allowed_users %}
+      <tr>
+        <td data-label="ユーザー名" class="mono">{{ u }}{% if u == current_user.name %} (自分){% endif %}</td>
+        <td>
+          {% if u != current_user.name %}
+          <form method="post" data-confirm="{{ u }} をコンソールから締め出しますか?" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="remove_console_user">
+            <input type="hidden" name="console_user" value="{{ u }}">
+            <button class="btn-sm btn-danger" type="submit">delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2" class="empty-state">未登録です（全ユーザーがログインできます）。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>ピアノード（可用性のための複製）</h2>
+<p class="section-sub">
+  ここに登録したノードには、このノード上でのアプリ・サイト・プロキシの
+  作成／編集／削除が自動的に反映されます（それぞれのノードが自分の
+  レジストリへ独立にビルド・pushします）。各ノードは今まで通り完全に
+  独立したk3s/SpinKubeクラスタのままで、クラスタ自体を統合するわけでは
+  ありません。フルメッシュ構成にする場合は、ノードAにはB・Cを、ノードBには
+  A・Cを、というように<strong>自分以外の全ノード</strong>を毎回登録してください。
+</p>
+
+<h3>共有トークン</h3>
+<p class="section-sub">
+  ピア間の複製リクエストを認証するための共有シークレットです。
+  <strong>メッシュに参加する全ノードで同じ値</strong>を設定してください。
+  保存すると設定を反映するためこのサービス自体が再起動します
+  （数秒間アクセスできなくなります。再ログインは不要です）。
+</p>
+{% if generated_peer_token %}
+<div class="card" style="border-color: rgba(12,163,12,0.3); margin-bottom:1rem">
+  トークンを保存しました。<strong>この値を今すぐコピーして、他の全ノードの
+  <span class="mono">/etc/spinapp-ui/env</span>にも同じ値を設定してください</strong>
+  （再表示はされません）:
+  <div class="mono" style="margin-top:0.5rem; padding:0.6rem; background:var(--surface-2); border-radius:8px; word-break:break-all; user-select:all;">{{ generated_peer_token }}</div>
+</div>
+{% elif not peer_token_configured %}
+<div class="error">
+  SPINAPP_UI_PEER_TOKEN が未設定です。トークンを生成するか入力して保存し、
+  他の全ノードにも同じ値を設定してから、下のピアノードを登録してください。
+</div>
+{% endif %}
+<div class="card" style="margin-bottom:1rem">
+  <form method="post" class="wrap-row" style="display:flex; gap:0.5rem; align-items:center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_peer_token">
+    <input name="peer_token" placeholder="トークンを入力 (16文字以上)" style="flex:1">
+    <button type="submit" class="btn-sm">保存して再起動</button>
+  </form>
+  <form method="post" style="margin-top:0.6rem" data-confirm="新しいトークンをランダム生成して保存しますか？（他の全ノードにも同じ値を設定し直す必要があります）">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="generate_peer_token">
+    <button type="submit" class="btn-sm btn-outline-success">ランダム生成して保存</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:1rem">
+  <form method="post" class="wrap-row" style="display:flex; gap:0.5rem; align-items:center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="add_peer">
+    <input name="new_peer" placeholder="https://node2.example.com:8080" required style="flex:1">
+    <button type="submit" class="btn-sm">追加</button>
+  </form>
+</div>
+
+<div class="card" style="padding:0; margin-bottom:1.75rem">
+  <table class="stack">
+    <thead><tr><th>ピアノード</th><th></th></tr></thead>
+    <tbody>
+      {% for p in peers %}
+      <tr>
+        <td data-label="ピアノード" class="mono">{{ p }}</td>
+        <td>
+          <form method="post" data-confirm="{{ p }} への複製を停止しますか？" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="remove_peer">
+            <input type="hidden" name="peer" value="{{ p }}">
+            <button class="btn-sm btn-danger" type="submit">delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2" class="empty-state">登録されているピアノードはありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>メール送信 (SMTP)</h2>
+<p class="section-sub">
+  Cron Jobの「メール送信」タブで使うSMTPサーバー/ログイン情報です (STARTTLS前提)。
+  送信元(From)アドレスなど、ジョブごとに変わる内容はここではなく各Cron Jobの編集画面で設定します。
+</p>
+<div class="card" style="margin-bottom:1.75rem">
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="save_smtp">
+  <label>SMTPホスト</label>
+  <input name="smtp_host" placeholder="smtp.example.com" value="{{ smtp_host }}" required>
+  <label style="margin-top:0.7rem">ポート</label>
+  <input name="smtp_port" type="number" min="1" max="65535" value="{{ smtp_port }}" required>
+  <label style="margin-top:0.7rem">ユーザー名</label>
+  <input name="smtp_user" placeholder="user@example.com" value="{{ smtp_user }}">
+  <label style="margin-top:0.7rem">パスワード{% if smtp_password_configured %} (変更する場合のみ入力){% endif %}</label>
+  <input name="smtp_password" type="password" autocomplete="new-password"
+         placeholder="{{ '変更しない場合は空欄のまま' if smtp_password_configured else '' }}">
+  <button type="submit" class="btn-sm" style="margin-top:0.9rem">保存</button>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: registry
+  template:
+    metadata:
+      labels:
+        app: registry
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: registry
+          image: docker.io/library/registry:2
+          # hostNetwork means the registry:2 image's default "bind all
+          # interfaces" behavior puts this on the node's real, LAN-facing
+          # IP with zero auth -- confirmed reachable and fully enumerable
+          # (GET /v2/_catalog) from outside the node. Binding to loopback
+          # only keeps this the "localhost-only" registry the rest of
+          # this repo's docs already assume it is, while node-local
+          # containerd/kubelet image pulls (which also go via localhost)
+          # are unaffected.
+          env:
+            - name: REGISTRY_HTTP_ADDR
+              value: "127.0.0.1:5000"
+          ports:
+            - containerPort: 5000
+              hostPort: 5000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+      volumes:
+        - name: data
+          hostPath:
+            # __REGISTRY_DATA_DIR__ is substituted by install.sh --
+            # /var/lib/spinkube-registry by default, or
+            # $SPINDECK_DATA_DIR/registry if that env var was set at
+            # install time (see install.sh's own comments).
+            path: __REGISTRY_DATA_DIR__
+            type: DirectoryOrCreate

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}SpinDeck — Import 結果{% endblock %}
+{% block content %}
+<h1>Import 結果</h1>
+<p class="section-sub" style="margin-top:0">
+  <a href="/import">← Importに戻る</a> ・ <a href="/">ダッシュボードに戻る</a>
+</p>
+
+<div class="card" style="padding: 0;">
+<table class="stack">
+  <thead>
+    <tr><th>種類</th><th>名前</th><th>結果</th></tr>
+  </thead>
+  <tbody>
+    {% for r in results %}
+    <tr>
+      <td data-label="種類">{{ r.kind }}</td>
+      <td data-label="名前" class="mono">{{ r.name }}</td>
+      <td data-label="結果">
+        {% if r.ok %}
+        <span class="badge ok"><span class="dot"></span>成功</span>
+        {% else %}
+        <span class="badge bad"><span class="dot"></span>失敗: {{ r.error }}</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3" class="empty-state">インポートされたアプリはありません。</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+[Unit]
+Description=Detect and recover from stuck containerd-shim-spin-v2 processes
+After=k3s.service
+Wants=k3s.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/spinapp-ui/spin-shim-recovery.sh
+User=root

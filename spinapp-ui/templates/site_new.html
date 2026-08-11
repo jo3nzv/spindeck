@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}SpinDeck — 新規サイト{% endblock %}
+{% block extra_head %}
+{% include "_site_editor_assets.html" %}
+{% endblock %}
+{% block content %}
+<h1>新規サイト登録</h1>
+
+{% if errors %}
+<div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}</div>
+{% endif %}
+
+<div class="card">
+{% include "_site_editor_body.html" %}
+</div>
+{% endblock %}

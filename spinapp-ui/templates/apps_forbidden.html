@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アクセスが拒否されました</title>
+<style>
+  :root { color-scheme: light; --page:#f9f9f7; --surface-1:#fcfcfb; --text-primary:#0b0b0b;
+    --text-secondary:#52514e; --border:rgba(11,11,11,0.10); --series-1:#2a78d6; --radius:12px; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19;
+      --text-primary:#fff; --text-secondary:#c3c2b7; --border:rgba(255,255,255,0.10); --series-1:#3987e5; }
+  }
+  :root[data-theme="dark"] { color-scheme: dark; --page:#0d0d0d; --surface-1:#1a1a19; --text-primary:#fff;
+    --text-secondary:#c3c2b7; --border:rgba(255,255,255,0.10); --series-1:#3987e5; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--page);
+    color: var(--text-primary); display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; margin: 0; padding: 1.5rem; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 2rem; max-width: 420px; width: 100%; }
+  h1 { font-size: 1.15rem; margin: 0 0 0.75rem; }
+  p { color: var(--text-secondary); line-height: 1.6; margin: 0 0 0.75rem; }
+  a { color: var(--series-1); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>アクセスが拒否されました</h1>
+    <p><strong>{{ user.name }}</strong> としてログインしていますが、「{{ app_name }}」の閲覧を許可されたユーザーの一覧に含まれていません。</p>
+    <p>アプリの管理者に、このアプリのOIDC認証設定に許可するユーザーとして追加してもらってください。</p>
+    <p><a href="/_spindeck/oidc/login?switch=1&next={{ next_url | urlencode }}">別のユーザーでログインし直す</a></p>
+  </div>
+</body>
+</html>

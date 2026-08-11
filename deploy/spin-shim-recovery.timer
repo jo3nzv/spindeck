@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically run spin-shim-recovery.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

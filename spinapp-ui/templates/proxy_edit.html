@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}プロキシを編集: {{ edit_name }}{% endblock %}
+{% block extra_head %}
+{% include "_proxy_editor_assets.html" %}
+{% endblock %}
+{% block content %}
+<h1>プロキシを編集: {{ form_name }}
+  <a href="/export/proxy/{{ form_name }}" class="btn outline btn-sm" style="vertical-align:middle">⬇️ エクスポート</a>
+</h1>
+
+{% if errors %}
+<div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}</div>
+{% endif %}
+{% if build_log %}
+<pre class="log">{{ build_log }}</pre>
+{% endif %}
+
+<div class="card">
+{% include "_proxy_editor_body.html" %}
+</div>
+
+<div class="card danger-zone">
+  <h3 style="margin-top:0">危険な操作</h3>
+  <p class="section-sub">この SpinApp を削除します。この操作は取り消せません。</p>
+  <form method="post" action="/apps/{{ form_name }}/delete" data-confirm="Delete {{ form_name }}?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="del-btn">delete {{ form_name }}</button>
+  </form>
+</div>
+{% endblock %}

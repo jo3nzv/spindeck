@@ -1,0 +1,54 @@
+<div id="epanel-auth" class="epanel">
+  {% if auth_tab_extra_note %}
+  <p class="section-sub" style="margin-top:0">{{ auth_tab_extra_note }}</p>
+  {% endif %}
+  <div class="card" style="max-width:480px">
+    <div style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1rem">
+      <label style="display:flex; align-items:center; gap:0.5rem; font-weight:600; cursor:pointer">
+        <input type="radio" form="{{ form_id }}" name="auth_mode" value="none"
+               {{ 'checked' if auth_mode != 'basic' and auth_mode != 'oidc' else '' }}
+               style="width:auto" onchange="toggleAuthFields()">
+        認証なし
+      </label>
+      <label style="display:flex; align-items:center; gap:0.5rem; font-weight:600; cursor:pointer">
+        <input type="radio" form="{{ form_id }}" name="auth_mode" value="basic"
+               {{ 'checked' if auth_mode == 'basic' else '' }}
+               style="width:auto" onchange="toggleAuthFields()">
+        Basic認証で保護する
+      </label>
+      <label style="display:flex; align-items:center; gap:0.5rem; font-weight:600; cursor:pointer">
+        <input type="radio" form="{{ form_id }}" name="auth_mode" value="oidc"
+               {{ 'checked' if auth_mode == 'oidc' else '' }}
+               style="width:auto" onchange="toggleAuthFields()">
+        OIDC認証で保護する(許可ユーザー限定)
+      </label>
+    </div>
+
+    <div id="auth-basic-fields" style="{{ '' if auth_mode == 'basic' else 'display:none' }}">
+      <label>Username</label>
+      <input name="auth_username" form="{{ form_id }}" value="{{ auth_username or '' }}" placeholder="username">
+      <label style="margin-top:0.7rem">Password{% if is_edit and auth_mode == 'basic' %} (変更する場合のみ入力){% endif %}</label>
+      <input name="auth_password" form="{{ form_id }}" type="password" autocomplete="new-password"
+             placeholder="{{ '変更しない場合は空欄のまま' if is_edit and auth_mode == 'basic' else 'password' }}">
+      <p class="section-sub" style="margin:0.9rem 0 0">
+        有効にすると、このアプリへのアクセス時にブラウザが標準のユーザー名/パスワード入力を要求します。
+      </p>
+    </div>
+
+    <div id="auth-oidc-fields" style="{{ '' if auth_mode == 'oidc' else 'display:none' }}">
+      <label>許可するユーザー(1行に1人、Keycloakのユーザー名)</label>
+      <textarea name="auth_oidc_users" form="{{ form_id }}" rows="5" placeholder="alice&#10;bob">{{ oidc_users_text or '' }}</textarea>
+      <p class="section-sub" style="margin:0.9rem 0 0">
+        有効にすると、このアプリへのアクセス時にコンソールと同じKeycloakでのログインを求め、
+        ここに列挙したユーザー名(preferred_username)を持つユーザーだけを通します。
+      </p>
+    </div>
+  </div>
+</div>
+<script>
+function toggleAuthFields() {
+  const mode = document.querySelector('input[name="auth_mode"]:checked').value;
+  document.getElementById('auth-basic-fields').style.display = mode === 'basic' ? '' : 'none';
+  document.getElementById('auth-oidc-fields').style.display = mode === 'oidc' ? '' : 'none';
+}
+</script>

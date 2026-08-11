@@ -1,0 +1,19 @@
+# RuntimeClass + SpinAppExecutor for the Spin containerd shim. Also not part
+# of the spin-operator Helm chart -- applied separately (this is what
+# EXECUTOR/apply_route() in the console refer to as containerd-shim-spin).
+apiVersion: node.k8s.io/v1
+handler: spin
+kind: RuntimeClass
+metadata:
+  name: wasmtime-spin-v2
+---
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinAppExecutor
+metadata:
+  name: containerd-shim-spin
+  namespace: default
+spec:
+  createDeployment: true
+  deploymentConfig:
+    installDefaultCACerts: true
+    runtimeClassName: wasmtime-spin-v2

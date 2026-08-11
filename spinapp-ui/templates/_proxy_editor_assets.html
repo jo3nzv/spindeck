@@ -1,0 +1,245 @@
+<style>
+  .etabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; background: var(--surface-2); padding: 0.25rem; border-radius: 10px; width: fit-content; max-width: 100%; overflow-x: auto; }
+  .etabs button {
+    border: none; background: transparent; color: var(--text-secondary);
+    border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+    white-space: nowrap; flex: none;
+  }
+  .etabs button.active { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 1px 2px var(--border); }
+  .epanel { display: none; }
+  .epanel.active { display: block; }
+
+  .rule-row {
+    display: grid; grid-template-columns: 110px 1fr 170px 1fr 28px; gap: 0.5rem; align-items: center;
+    padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+  }
+  .rule-row:last-of-type { border-bottom: none; }
+  .rule-row select, .rule-row input { height: 2.1rem; font-size: 0.85rem; }
+  .rewrite-row {
+    display: grid; grid-template-columns: 1fr 1fr 28px; gap: 0.5rem; align-items: center;
+    padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+  }
+  .rewrite-row:last-of-type { border-bottom: none; }
+  .rewrite-row input {
+    height: 2.1rem; font-size: 0.82rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .row-del {
+    border: none; background: none; color: var(--status-critical); cursor: pointer;
+    font-size: 1.15rem; line-height: 1; padding: 0;
+  }
+  .add-row-btn {
+    margin-top: 0.6rem; padding: 0.5rem 0.8rem; font-size: 0.82rem; width: 100%;
+    border: 1px dashed var(--border); background: none; color: var(--series-1);
+    cursor: pointer; border-radius: 8px;
+  }
+  .rule-target-cell.hidden { visibility: hidden; }
+  .empty-rows { color: var(--text-muted); font-size: 0.82rem; padding: 0.4rem 0; }
+
+  .preview-bar { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
+  .preview-bar .preview-base { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
+  .preview-bar input { flex: 1; min-width: 6rem; padding: 0.35rem 0.55rem; font-size: 0.82rem; }
+  .preview-bar button, .preview-bar a.btn-like { padding: 0.35rem 0.7rem; font-size: 0.8rem; white-space: nowrap; }
+  #preview-frame {
+    width: 100%; height: 600px; border: 1px solid var(--border); border-radius: 8px; background: white;
+  }
+  .preview-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
+
+  @media (max-width: 720px) {
+    /* The rule/rewrite grids assume desktop-width fixed columns (110px,
+       170px, ...) that don't leave room for the flexible columns on a
+       phone; stack every field on its own line instead of squeezing. */
+    .rule-row {
+      grid-template-columns: 1fr auto; grid-template-areas:
+        "match del" "path path" "action action" "target target";
+      row-gap: 0.35rem;
+    }
+    .rule-row select:first-child { grid-area: match; }
+    .rule-row input:first-of-type { grid-area: path; }
+    .rule-row select:last-of-type { grid-area: action; }
+    .rule-row .rule-target-cell { grid-area: target; }
+    .rule-row .row-del { grid-area: del; justify-self: end; }
+    .rewrite-row { grid-template-columns: 1fr; row-gap: 0.35rem; }
+    .rewrite-row .row-del { justify-self: end; }
+    #preview-frame { height: 420px; }
+    .preview-bar { flex-wrap: wrap; }
+    .preview-bar .preview-base { flex-basis: 100%; }
+  }
+</style>
+<script>
+const EXTERNAL_HOST = {{ external_host | tojson }};
+const INITIAL_RULES = {{ (form_rules or []) | tojson }};
+const INITIAL_REWRITES = {{ (form_rewrites or []) | tojson }};
+
+let proxyRules = INITIAL_RULES.map((r) => Object.assign({ match: 'prefix', path: '', action: 'passthrough', target: '' }, r));
+let proxyRewrites = INITIAL_REWRITES.map((r) => Object.assign({ pattern: '', replace: '' }, r));
+
+function currentPreviewUrl() {
+  const nameEl = document.getElementById('proxy-name-input');
+  if (!nameEl) return null;
+  const name = nameEl.value.trim();
+  const pathEl = document.getElementById('preview-path');
+  const path = (pathEl && pathEl.value) || '/';
+  const cleanPath = path.startsWith('/') ? path : '/' + path;
+  if (!name) return null;
+  return `https://${EXTERNAL_HOST}/${name}${cleanPath}`;
+}
+
+function refreshPreview() {
+  const url = currentPreviewUrl();
+  const frame = document.getElementById('preview-frame');
+  const openLink = document.getElementById('preview-open');
+  const baseLabel = document.getElementById('preview-base-label');
+  const name = document.getElementById('proxy-name-input').value.trim();
+  baseLabel.textContent = name ? `https://${EXTERNAL_HOST}/${name}` : '(name を入力してください)';
+  if (url) {
+    frame.src = url;
+    openLink.href = url;
+    openLink.style.opacity = '1';
+  } else {
+    frame.src = 'about:blank';
+    openLink.removeAttribute('href');
+    openLink.style.opacity = '0.4';
+  }
+}
+
+function showEditorPanel(which) {
+  document.getElementById('epanel-config').classList.toggle('active', which === 'config');
+  document.getElementById('epanel-preview').classList.toggle('active', which === 'preview');
+  document.getElementById('epanel-auth').classList.toggle('active', which === 'auth');
+  document.getElementById('etab-config').classList.toggle('active', which === 'config');
+  document.getElementById('etab-preview').classList.toggle('active', which === 'preview');
+  document.getElementById('etab-auth').classList.toggle('active', which === 'auth');
+  const logsPanel = document.getElementById('epanel-logs');
+  const logsTab = document.getElementById('etab-logs');
+  if (logsPanel) logsPanel.classList.toggle('active', which === 'logs');
+  if (logsTab) logsTab.classList.toggle('active', which === 'logs');
+  if (which === 'preview') refreshPreview();
+  else if (which === 'logs' && typeof refreshLogs === 'function') refreshLogs();
+}
+
+function renderRules() {
+  const list = document.getElementById('rules-list');
+  list.innerHTML = '';
+  if (!proxyRules.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-rows';
+    empty.textContent = 'ルールなし: すべてのパスをそのまま backend origin へ転送します。';
+    list.appendChild(empty);
+  }
+  proxyRules.forEach((rule, i) => {
+    const row = document.createElement('div');
+    row.className = 'rule-row';
+
+    const matchSel = document.createElement('select');
+    [['prefix', '前方一致'], ['exact', '完全一致']].forEach(([v, label]) => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = label;
+      if (rule.match === v) opt.selected = true;
+      matchSel.appendChild(opt);
+    });
+    matchSel.addEventListener('change', () => { rule.match = matchSel.value; });
+
+    const pathInput = document.createElement('input');
+    pathInput.placeholder = '/api/login';
+    pathInput.value = rule.path || '';
+    pathInput.addEventListener('input', () => { rule.path = pathInput.value; });
+
+    const actionSel = document.createElement('select');
+    [['passthrough', 'そのまま転送'], ['block', '404にする'], ['bounce', '別パスの内容に差し替え']].forEach(([v, label]) => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = label;
+      if (rule.action === v) opt.selected = true;
+      actionSel.appendChild(opt);
+    });
+
+    const targetInput = document.createElement('input');
+    targetInput.placeholder = '/shared/xxxxx (backend 上のパス)';
+    targetInput.value = rule.target || '';
+    targetInput.addEventListener('input', () => { rule.target = targetInput.value; });
+    const targetCell = document.createElement('div');
+    targetCell.className = 'rule-target-cell';
+    targetCell.appendChild(targetInput);
+    const syncTargetVisibility = () => {
+      targetCell.classList.toggle('hidden', actionSel.value !== 'bounce');
+    };
+    actionSel.addEventListener('change', () => { rule.action = actionSel.value; syncTargetVisibility(); });
+    syncTargetVisibility();
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.className = 'row-del'; delBtn.title = 'ルールを削除';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', () => { proxyRules.splice(i, 1); renderRules(); });
+
+    row.appendChild(matchSel);
+    row.appendChild(pathInput);
+    row.appendChild(actionSel);
+    row.appendChild(targetCell);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+
+function addRule() {
+  proxyRules.push({ match: 'prefix', path: '/', action: 'passthrough', target: '' });
+  renderRules();
+}
+
+function renderRewrites() {
+  const list = document.getElementById('rewrites-list');
+  list.innerHTML = '';
+  if (!proxyRewrites.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-rows';
+    empty.textContent = '書き換えルールなし: レスポンス本文はそのまま中継します。';
+    list.appendChild(empty);
+  }
+  proxyRewrites.forEach((rw, i) => {
+    const row = document.createElement('div');
+    row.className = 'rewrite-row';
+
+    const patInput = document.createElement('input');
+    patInput.placeholder = String.raw`"\/(api\/v1|static(?=["/])|assets)`;
+    patInput.value = rw.pattern || '';
+    patInput.addEventListener('input', () => { rw.pattern = patInput.value; });
+
+    const repInput = document.createElement('input');
+    repInput.placeholder = '"{{PREFIX}}/$1';
+    repInput.value = rw.replace || '';
+    repInput.addEventListener('input', () => { rw.replace = repInput.value; });
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.className = 'row-del'; delBtn.title = '書き換えルールを削除';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', () => { proxyRewrites.splice(i, 1); renderRewrites(); });
+
+    row.appendChild(patInput);
+    row.appendChild(repInput);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+
+function addRewrite() {
+  proxyRewrites.push({ pattern: '', replace: '' });
+  renderRewrites();
+}
+
+function initProxyEditor() {
+  document.getElementById('proxy-name-input').addEventListener('input', refreshPreview);
+  document.getElementById('preview-path').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); refreshPreview(); }
+  });
+  document.getElementById('preview-reload').addEventListener('click', refreshPreview);
+  document.getElementById('rule-add-btn').addEventListener('click', addRule);
+  document.getElementById('rewrite-add-btn').addEventListener('click', addRewrite);
+  renderRules();
+  renderRewrites();
+  refreshPreview();
+  document.getElementById('proxy-form').addEventListener('submit', function () {
+    document.getElementById('rules-json').value = JSON.stringify(proxyRules);
+    document.getElementById('rewrites-json').value = JSON.stringify(proxyRewrites);
+  });
+}
+document.addEventListener('DOMContentLoaded', initProxyEditor);
+</script>

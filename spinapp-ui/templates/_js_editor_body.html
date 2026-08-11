@@ -1,0 +1,55 @@
+<p class="section-sub" style="margin-top:0">
+  Cloudflare Workers 風の JavaScript をそのまま貼り付けてデプロイできます。
+  <code>addEventListener('fetch', event =&gt; event.respondWith(...))</code> の形式で記述してください。
+  貼り付けたコードはサーバー側で Wasm コンポーネントにビルドされ、ローカルレジストリ経由でクラスタにデプロイされます
+  (初回起動時のビルドに数十秒かかります)。
+</p>
+<div class="wrap-row" style="display:flex; align-items:flex-end; gap:0.4rem; margin-bottom:1rem">
+  {% with form_id = "js-form" %}
+  {% include "_fqdn_field.html" %}
+  {% endwith %}
+  <span class="mono" style="padding-bottom:0.6rem; color:var(--text-muted)">/</span>
+  <div style="max-width:340px; flex:1">
+    <label>Name{% if is_edit %} (既存アプリの更新 - 変更不可){% endif %}</label>
+    <input id="js-name-input" form="js-form" name="name" pattern="[a-z0-9\-]+" placeholder="my-js-worker" required
+           value="{{ form_name or '' }}" {{ 'readonly' if is_edit else '' }}>
+  </div>
+</div>
+
+<div class="etabs">
+  <button type="button" id="etab-code" class="active" onclick="showEditorPanel('code')">コード</button>
+  <button type="button" id="etab-preview" onclick="showEditorPanel('preview')">プレビュー</button>
+  <button type="button" id="etab-auth" onclick="showEditorPanel('auth')">🔒 認証</button>
+  {% if is_edit %}
+  <button type="button" id="etab-logs" onclick="showEditorPanel('logs')">📜 ログ</button>
+  {% endif %}
+</div>
+
+<div id="epanel-code" class="epanel active">
+  <div id="monaco-container"></div>
+  <form id="js-form" method="post" action="/apps/js" style="margin-top:0.75rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="mode" value="{{ 'edit' if is_edit else 'create' }}">
+    <textarea name="code" id="code-textarea" style="display:none">{{ form_code if form_code is not none else "addEventListener('fetch', (event) => {\n  event.respondWith(new Response('Hello from JS!'));\n});" }}</textarea>
+    <button type="submit" style="width:100%">{{ 'Update & Redeploy' if is_edit else 'Build & Deploy' }}</button>
+  </form>
+</div>
+
+<div id="epanel-preview" class="epanel">
+  <div class="preview-bar">
+    <span class="preview-base mono" id="preview-base-label">-</span>
+    <input id="preview-path" class="mono" value="/" placeholder="/path">
+    <button type="button" id="preview-reload">更新</button>
+    <a id="preview-open" href="#" target="_blank" class="btn-like" style="opacity:0.4">新しいタブ↗</a>
+  </div>
+  <iframe id="preview-frame" title="preview"></iframe>
+  <p class="preview-hint">デプロイ前は404になります。デプロイ後に「更新」を押してください。JSON を返す API はブラウザにそのまま表示されます。</p>
+</div>
+
+{% with form_id = "js-form" %}
+{% include "_auth_tab.html" %}
+{% endwith %}
+
+{% if is_edit %}
+{% include "_logs_tab.html" %}
+{% endif %}

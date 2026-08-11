@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}SpinDeck — Analytics{% endblock %}
+{% block content %}
+<h1>アクセス解析</h1>
+<p class="section-sub">Traefik のアクセスログを集計しています。直近ログのみが対象で、Pod再起動をまたぐ古いログは含まれません。</p>
+
+{% if log_error %}
+<div class="error">ログの取得に失敗しました: {{ log_error }}</div>
+{% elif not log_diag.exists %}
+<div class="error">
+  ログファイルが見つかりません: <span class="mono">{{ log_diag.path }}</span>
+  ― Traefik側の書き込み先(HelmChartConfig)とコンソールの読み込み先(SPINAPP_UI_TRAEFIK_ACCESS_LOG)がズレている可能性があります。
+</div>
+{% elif log_diag.stale %}
+<div class="warning">
+  警告: ログファイル(<span class="mono">{{ log_diag.path }}</span>)が
+  {{ (log_diag.age_seconds / 60) | round | int }} 分間更新されていません。
+  Traefikが実際に書き込んでいる場所とここで読んでいる場所がズレている可能性があります
+  (実際に確認する場合は <span class="mono">kubectl get helmchartconfig traefik -n kube-system -o yaml</span> の
+  <span class="mono">--accesslog.filepath</span> を参照)。
+</div>
+{% endif %}
+
+<p class="section-sub" style="margin-top:-0.6rem">
+  読み込み元: <span class="mono">{{ log_diag.path }}</span>
+  {% if log_diag.exists %}
+  ・ {{ "%.1f"|format(log_diag.size_bytes / 1048576) }} MB
+  ・ 最終更新: {{ log_diag.mtime.strftime('%Y-%m-%d %H:%M:%S') }}
+  {% endif %}
+</p>
+
+<div class="range-row" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.8rem">
+  <div style="display:flex; gap:0.4rem; flex-wrap:wrap">
+    {% for key, label in range_options %}
+    <a href="/analytics?range={{ key }}{{ '&app=' + app_filter if app_filter else '' }}" class="{{ 'active' if key == range_key else '' }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <form method="get" style="margin:0">
+    <input type="hidden" name="range" value="{{ range_key }}">
+    <select name="app" onchange="this.form.submit()" style="height:auto; padding:0.4rem 0.7rem; font-size:0.85rem">
+      <option value="" {{ 'selected' if not app_filter else '' }}>全アプリ</option>
+      {% for a in stats.available_apps %}
+      <option value="{{ a }}" {{ 'selected' if a == app_filter else '' }}>{{ a }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="stat-grid">
+  <div class="card stat-tile">
+    <div class="stat-label">総リクエスト数</div>
+    <div class="stat-value">{{ "{:,}".format(stats.total) }}</div>
+  </div>
+  <div class="card stat-tile">
+    <div class="stat-label">アクティブなアプリ</div>
+    <div class="stat-value">{{ stats.active_apps }}</div>
+  </div>
+  <div class="card stat-tile">
+    <div class="stat-label">エラー率</div>
+    <div class="stat-value">{{ "%.1f"|format(stats.error_rate) }}<span style="font-size:1.1rem;font-weight:500">%</span></div>
+    <div class="stat-sub">4xx / 5xx の割合</div>
+  </div>
+  <div class="card stat-tile">
+    <div class="stat-label">平均応答時間</div>
+    <div class="stat-value">{{ "%.0f"|format(stats.avg_duration_ms) }}<span style="font-size:1.1rem;font-weight:500">ms</span></div>
+  </div>
+</div>
+
+<h2>リクエスト数の推移</h2>
+<div class="card">
+  {{ line_svg|safe }}
+</div>
+
+<h2>アプリ別リクエスト数</h2>
+<div class="card">
+  {% if bar_svg %}
+  {{ bar_svg|safe }}
+  {% else %}
+  <div class="empty-state">この期間のデータがありません。</div>
+  {% endif %}
+</div>
+
+<h2>アプリ別ステータス内訳</h2>
+<div class="card">
+  {% if status_svg %}
+  {{ status_svg|safe }}
+  {% else %}
+  <div class="empty-state">この期間のデータがありません。</div>
+  {% endif %}
+</div>
+
+<h2>アクセス先 Top15 (アプリ・メソッド・パス)</h2>
+<div class="card" style="padding:0">
+  <table class="stack">
+    <thead><tr><th>アプリ</th><th>メソッド</th><th>パス</th><th style="text-align:right">件数</th></tr></thead>
+    <tbody>
+      {% for row in stats.top_paths %}
+      <tr>
+        <td data-label="アプリ">{{ row.app }}</td>
+        <td data-label="メソッド" class="mono">{{ row.method }}</td>
+        <td data-label="パス" class="mono" style="word-break:break-all">{{ row.path }}</td>
+        <td data-label="件数" style="text-align:right;font-variant-numeric:tabular-nums">{{ row.count }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="empty-state">データがありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>直近のアクセス (最大150件)</h2>
+<div class="card" style="padding:0">
+  <div style="max-height:480px; overflow-y:auto">
+  <table class="stack">
+    <thead>
+      <tr>
+        <th>時刻</th><th>アプリ</th><th>メソッド</th><th>パス</th>
+        <th>ステータス</th><th style="text-align:right">応答時間</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in stats.recent %}
+      <tr>
+        <td data-label="時刻" class="mono" style="white-space:nowrap;font-variant-numeric:tabular-nums">{{ r.time_label }}</td>
+        <td data-label="アプリ">{{ r.app }}</td>
+        <td data-label="メソッド" class="mono">{{ r.method }}</td>
+        <td data-label="パス" class="mono" style="word-break:break-all">{{ r.path }}</td>
+        <td data-label="ステータス">
+          <span class="badge {{ 'ok' if r.status_bucket == 'good' else ('bad' if r.status_bucket == 'critical' else '') }}"
+                {% if r.status_bucket == 'warning' %}style="background:rgba(250,178,25,0.16);color:#9a6a00"{% endif %}>
+            <span class="dot" {% if r.status_bucket == 'warning' %}style="background:var(--status-warning)"{% endif %}></span>{{ r.status }}
+          </span>
+        </td>
+        <td data-label="応答時間" style="text-align:right;font-variant-numeric:tabular-nums">{{ "%.0f"|format(r.duration_ms) }} ms</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-state">データがありません。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

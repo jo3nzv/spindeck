@@ -1,0 +1,368 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs/loader.js"></script>
+<style>
+  .etabs { display: flex; gap: 0.3rem; margin-bottom: 1rem; background: var(--surface-2); padding: 0.25rem; border-radius: 10px; width: fit-content; max-width: 100%; overflow-x: auto; }
+  .etabs button {
+    border: none; background: transparent; color: var(--text-secondary);
+    border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.85rem; cursor: pointer; font-family: inherit;
+    white-space: nowrap; flex: none;
+  }
+  .etabs button.active { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 1px 2px var(--border); }
+  .epanel { display: none; }
+  .epanel.active { display: block; }
+
+  #exec-term { height: 500px; background: #0f0f0e; border-radius: 8px; padding: 0.5rem; }
+  #exec-pod-select { height: 2.35rem; }
+  #yaml-container { height: 500px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  @media (max-width: 720px) {
+    #exec-term, #yaml-container { height: 380px; }
+  }
+
+  .sidecar-block { border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; margin-bottom: 0.7rem; }
+  .sidecar-block .wrap-row { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .sidecar-block .wrap-row > div { flex: 1; }
+  .sidecar-block label { font-size: 0.82rem; }
+  .sidecar-block textarea { min-height: 3.2rem; }
+  .sidecar-storage-label { display: flex; align-items: center; gap: 0.4rem; margin: 0.6rem 0 0; font-weight: 400; color: var(--text-primary) }
+  .sidecar-storage-label input { width: auto; height: auto }
+
+  .extra-port-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
+  .extra-port-row .extra-port-number { max-width: 160px; }
+  .extra-port-row .extra-port-target { max-width: 260px; }
+  .extra-port-row .extra-port-protocol { max-width: 110px; }
+</style>
+<script>
+function showEditorPanel(which) {
+  document.getElementById('epanel-config').classList.toggle('active', which === 'config');
+  document.getElementById('etab-config').classList.toggle('active', which === 'config');
+  document.getElementById('epanel-auth').classList.toggle('active', which === 'auth');
+  document.getElementById('etab-auth').classList.toggle('active', which === 'auth');
+  const consolePanel = document.getElementById('epanel-console');
+  const consoleTab = document.getElementById('etab-console');
+  if (consolePanel) consolePanel.classList.toggle('active', which === 'console');
+  if (consoleTab) consoleTab.classList.toggle('active', which === 'console');
+  const logsPanel = document.getElementById('epanel-logs');
+  const logsTab = document.getElementById('etab-logs');
+  if (logsPanel) logsPanel.classList.toggle('active', which === 'logs');
+  if (logsTab) logsTab.classList.toggle('active', which === 'logs');
+  if (which === 'console' && window.__execFit) {
+    // The terminal was created while its container was display:none (0
+    // width/height), so fit() needs to re-run once the tab is actually
+    // visible and has real layout dimensions to measure.
+    setTimeout(() => window.__execFit.fit(), 0);
+  } else if (which === 'logs' && typeof refreshLogs === 'function') {
+    refreshLogs();
+  }
+}
+
+// Sub-tab within "設定": フォーム (image/cpu/mem/replicas fields) vs YAML
+// (raw Deployment+Service editing). Independent of showEditorPanel()'s
+// 設定/コンソール split above -- this only ever toggles inside epanel-config.
+function showConfigSubPanel(which) {
+  document.getElementById('csubpanel-form').classList.toggle('active', which === 'form');
+  document.getElementById('csub-form').classList.toggle('active', which === 'form');
+  document.getElementById('csubpanel-yaml').classList.toggle('active', which === 'yaml');
+  document.getElementById('csub-yaml').classList.toggle('active', which === 'yaml');
+  document.getElementById('edit-mode-input').value = which;
+  if (which === 'yaml' && window.monacoYamlEditor) {
+    setTimeout(() => window.monacoYamlEditor.layout(), 0);
+  }
+}
+
+function initContainerYamlEditor() {
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.49.0/min/vs' } });
+  require(['vs/editor/editor.main'], function () {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    window.monacoYamlEditor = monaco.editor.create(document.getElementById('yaml-container'), {
+      value: document.getElementById('yaml-textarea').value,
+      language: 'yaml',
+      theme: isDark ? 'vs-dark' : 'vs',
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 13,
+      scrollBeyondLastLine: false,
+      tabSize: 2,
+    });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+      monaco.editor.setTheme(e.matches ? 'vs-dark' : 'vs');
+    });
+    document.getElementById('container-form').addEventListener('submit', function () {
+      document.getElementById('yaml-textarea').value = window.monacoYamlEditor.getValue();
+    });
+  });
+}
+document.addEventListener('DOMContentLoaded', initContainerYamlEditor);
+
+const CONTAINER_NAME = {{ edit_name | tojson if is_edit else 'null' }};
+const EXEC_RESIZE_PREFIX = '\x01';
+let execWs = null;
+
+// --- サイドカーコンテナ (同一Pod内の追加コンテナ、例: WordPress+MySQL) ---
+let sidecarSeq = 0;
+
+function addSidecar(data) {
+  data = data || {};
+  const seq = sidecarSeq++;
+  const div = document.createElement('div');
+  div.className = 'sidecar-block';
+  div.dataset.seq = seq;
+  div.innerHTML = `
+    <div class="wrap-row">
+      <div>
+        <label>コンテナ名</label>
+        <input class="mono sidecar-name" pattern="[a-z0-9\\-]+" placeholder="mysql" value="${escapeHtmlAttr(data.name || '')}">
+      </div>
+      <div>
+        <label>イメージ</label>
+        <input class="mono sidecar-image" placeholder="mysql:8" value="${escapeHtmlAttr(data.image || '')}">
+      </div>
+    </div>
+    <label>起動コマンド (任意)</label>
+    <input class="mono sidecar-command" placeholder="空欄ならイメージの既定のコマンド" value="${escapeHtmlAttr(data.command || '')}" style="margin-bottom:0.6rem">
+    <label>環境変数 (任意)</label>
+    <textarea class="mono sidecar-env" placeholder="KEY=VALUE (1行に1つ)">${escapeHtml(data.env || '')}</textarea>
+    <div class="wrap-row" style="margin-top:0.6rem">
+      <div>
+        <label>CPU上限</label>
+        <input class="mono sidecar-cpu" placeholder="200m" value="${escapeHtmlAttr(data.cpu_limit || '200m')}">
+      </div>
+      <div>
+        <label>メモリ上限</label>
+        <input class="mono sidecar-mem" placeholder="256Mi" value="${escapeHtmlAttr(data.mem_limit || '256Mi')}">
+      </div>
+    </div>
+    <label class="sidecar-storage-label">
+      <input type="checkbox" class="sidecar-storage" ${data.storage ? 'checked' : ''} onchange="this.closest('.sidecar-block').querySelector('.sidecar-mount-path-row').style.display = this.checked ? '' : 'none'">
+      永続ストレージを使う
+    </label>
+    <div class="sidecar-mount-path-row" style="display:${data.storage ? '' : 'none'}; margin-top:0.5rem">
+      <label>マウント先パス</label>
+      <input class="mono sidecar-mount-path" placeholder="/data" value="${escapeHtmlAttr(data.mount_path || '/data')}">
+      <p class="section-sub" style="margin:0.3rem 0 0">
+        このコンテナのイメージが実際にデータを書き込む先を指定してください
+        (例: MySQL/MariaDBなら <code>/var/lib/mysql</code>、PostgreSQLなら <code>/var/lib/postgresql/data</code>)。
+        コンテナごとに専用のサブディレクトリが自動的に割り当てられます。
+      </p>
+    </div>
+    <div style="text-align:right; margin-top:0.6rem">
+      <button type="button" class="btn-sm" onclick="this.closest('.sidecar-block').remove()">このサイドカーを削除</button>
+    </div>
+  `;
+  document.getElementById('sidecars-list').appendChild(div);
+}
+
+// --- 追加の公開ポート (Traefikを経由しない、VPN等の非HTTPプロトコル向け) ---
+let extraPortSeq = 0;
+
+function addExtraPort(data) {
+  data = data || {};
+  const seq = extraPortSeq++;
+  const div = document.createElement('div');
+  div.className = 'extra-port-row';
+  div.dataset.seq = seq;
+  // target_port defaults to the same value as port (see
+  // _parse_extra_ports_json()) -- shown blank here (not pre-filled with
+  // port's value) so a plain "same in and out" entry stays visually
+  // simple, and only actually differs in the JSON once someone types a
+  // different value in.
+  const targetDiffers = data.target_port != null && data.target_port !== data.port;
+  div.innerHTML = `
+    <input class="mono extra-port-number" type="number" min="1" max="65535" placeholder="外部: 4500" value="${escapeHtmlAttr(data.port != null ? String(data.port) : '')}">
+    <span class="section-sub" style="margin:0">→</span>
+    <input class="mono extra-port-target" type="number" min="1" max="65535" placeholder="転送先 (同じなら空欄)" value="${escapeHtmlAttr(targetDiffers ? String(data.target_port) : '')}">
+    <select class="extra-port-protocol">
+      <option value="udp" ${data.protocol === 'udp' ? 'selected' : ''}>UDP</option>
+      <option value="tcp" ${data.protocol === 'tcp' ? 'selected' : ''}>TCP</option>
+    </select>
+    <button type="button" class="btn-sm" onclick="this.closest('.extra-port-row').remove()">削除</button>
+  `;
+  document.getElementById('extra-ports-list').appendChild(div);
+}
+
+function serializeExtraPorts() {
+  const rows = document.querySelectorAll('#extra-ports-list .extra-port-row');
+  const ports = Array.from(rows)
+    .map((r) => {
+      const port = parseInt(r.querySelector('.extra-port-number').value, 10);
+      const targetRaw = r.querySelector('.extra-port-target').value;
+      const target_port = targetRaw ? parseInt(targetRaw, 10) : port;
+      return {
+        port: port,
+        target_port: isNaN(target_port) ? port : target_port,
+        protocol: r.querySelector('.extra-port-protocol').value,
+      };
+    })
+    .filter((p) => !isNaN(p.port));
+  document.getElementById('extra-ports-json-input').value = JSON.stringify(ports);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const initialExtraPorts = document.getElementById('extra-ports-json-input');
+  if (initialExtraPorts) {
+    try {
+      const initial = JSON.parse(initialExtraPorts.value || '[]');
+      initial.forEach((p) => addExtraPort(p));
+    } catch (e) { /* ignore malformed initial value */ }
+  }
+  const extraPortsForm = document.getElementById('container-form');
+  if (extraPortsForm) extraPortsForm.addEventListener('submit', serializeExtraPorts);
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+function escapeHtmlAttr(s) {
+  return escapeHtml(s).replace(/"/g, '&quot;');
+}
+
+function serializeSidecars() {
+  const blocks = document.querySelectorAll('#sidecars-list .sidecar-block');
+  const sidecars = Array.from(blocks).map((b) => ({
+    name: b.querySelector('.sidecar-name').value.trim(),
+    image: b.querySelector('.sidecar-image').value.trim(),
+    command: b.querySelector('.sidecar-command').value.trim(),
+    env: b.querySelector('.sidecar-env').value,
+    cpu_limit: b.querySelector('.sidecar-cpu').value.trim(),
+    mem_limit: b.querySelector('.sidecar-mem').value.trim(),
+    storage: b.querySelector('.sidecar-storage').checked,
+    mount_path: b.querySelector('.sidecar-mount-path').value.trim(),
+  }));
+  document.getElementById('sidecars-json-input').value = JSON.stringify(sidecars);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const initialJson = document.getElementById('sidecars-json-input');
+  if (initialJson) {
+    try {
+      const initial = JSON.parse(initialJson.value || '[]');
+      initial.forEach((sc) => addSidecar(sc));
+    } catch (e) { /* ignore malformed initial value */ }
+  }
+  const form = document.getElementById('container-form');
+  if (form) form.addEventListener('submit', serializeSidecars);
+});
+
+function populateContainerSelect(select, names) {
+  if (!select) return;
+  const previous = select.value;
+  select.innerHTML = '';
+  names.forEach((n) => {
+    const opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n;
+    select.appendChild(opt);
+  });
+  if (names.includes(previous)) select.value = previous;
+}
+
+function loadPodOptions() {
+  const select = document.getElementById('exec-pod-select');
+  if (!select || !CONTAINER_NAME) return;
+  fetch(`/containers/${encodeURIComponent(CONTAINER_NAME)}/pods`)
+    .then((r) => r.json())
+    .then((data) => {
+      const pods = data.pods || [];
+      const previous = select.value;
+      select.innerHTML = '';
+      pods.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = `${p.name} (${p.ready ? 'Ready' : p.phase})`;
+        select.appendChild(opt);
+      });
+      if (pods.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '(Podが見つかりません)';
+        select.appendChild(opt);
+      } else if (pods.some((p) => p.name === previous)) {
+        select.value = previous;
+      }
+      // Same container list feeds both the コンソール tab's and the
+      // ログ tab's dropdowns -- a Pod's set of containers is defined by
+      // the Deployment (identical across every replica), so there's only
+      // ever one list to show regardless of which/how many pods exist.
+      const names = data.container_names || ['app'];
+      populateContainerSelect(document.getElementById('exec-container-select'), names);
+      populateContainerSelect(document.getElementById('logs-container-select'), names);
+    })
+    .catch(() => {});
+}
+
+function setExecStatus(text) {
+  const el = document.getElementById('exec-status');
+  if (el) el.textContent = text;
+}
+
+function setExecButtons(connected) {
+  const connectBtn = document.getElementById('exec-connect-btn');
+  const disconnectBtn = document.getElementById('exec-disconnect-btn');
+  if (connectBtn) connectBtn.style.display = connected ? 'none' : '';
+  if (disconnectBtn) disconnectBtn.style.display = connected ? '' : 'none';
+}
+
+function connectExec() {
+  const select = document.getElementById('exec-pod-select');
+  const pod = select ? select.value : '';
+  const containerSelect = document.getElementById('exec-container-select');
+  const container = containerSelect ? containerSelect.value : '';
+  if (!pod || !CONTAINER_NAME) return;
+  if (execWs) execWs.close();
+
+  if (!window.__execTerm) {
+    const term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#0f0f0e' } });
+    const fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+    term.open(document.getElementById('exec-term'));
+    // Fires on every fit()/programmatic resize -- the single place that
+    // tells the server-side pty (and the shell/program running in it) the
+    // terminal's real size changed, so full-screen programs (vi, top, ...)
+    // redraw correctly instead of rendering into a stale window size.
+    term.onResize(({ cols, rows }) => {
+      if (execWs && execWs.readyState === WebSocket.OPEN) {
+        execWs.send(EXEC_RESIZE_PREFIX + cols + ',' + rows);
+      }
+    });
+    term.onData((data) => {
+      if (execWs && execWs.readyState === WebSocket.OPEN) execWs.send(data);
+    });
+    window.addEventListener('resize', () => fit.fit());
+    window.__execTerm = term;
+    window.__execFit = fit;
+  }
+  window.__execTerm.reset();
+  window.__execFit.fit();
+
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const containerQuery = container ? `&container=${encodeURIComponent(container)}` : '';
+  const url = `${scheme}//${location.host}/containers/${encodeURIComponent(CONTAINER_NAME)}/exec?pod=${encodeURIComponent(pod)}${containerQuery}`;
+  execWs = new WebSocket(url);
+  setExecStatus(`接続中: ${pod}${container ? ' / ' + container : ''}`);
+  execWs.onopen = () => {
+    setExecButtons(true);
+    window.__execFit.fit();
+    window.__execTerm.focus();
+  };
+  execWs.onmessage = (event) => { window.__execTerm.write(event.data); };
+  execWs.onclose = () => {
+    setExecStatus('切断されました');
+    setExecButtons(false);
+    execWs = null;
+  };
+  execWs.onerror = () => { setExecStatus('接続エラー'); };
+}
+
+function disconnectExec() {
+  if (execWs) execWs.close();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  loadPodOptions();
+  const connectBtn = document.getElementById('exec-connect-btn');
+  const disconnectBtn = document.getElementById('exec-disconnect-btn');
+  if (connectBtn) connectBtn.addEventListener('click', connectExec);
+  if (disconnectBtn) disconnectBtn.addEventListener('click', disconnectExec);
+});
+</script>
