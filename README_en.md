@@ -35,9 +35,13 @@ can do it **without any Kubernetes knowledge at all**.
 Install it on a single server (VM, LXC container, or bare metal — any of
 these work) and you can have your first app live the same day.
 
+![Dashboard](docs/images/dashboard-en-dark.png)
+
 ## Key features
 
 ### Five ways to create an app
+
+![New App editor](docs/images/editor-en-dark.png)
 
 - **New App** — Paste [Cloudflare Workers](https://developers.cloudflare.com/workers/)-style
   JavaScript into a VS Code-like in-browser editor (Monaco), and it's
@@ -82,11 +86,15 @@ these work) and you can have your first app live the same day.
   tuning, extra volumes, etc.). Unlike the other kinds, this one runs a
   public image verbatim, so only point it at images you trust.
 
+![New Container settings](docs/images/container-new-en-dark.png)
+
 New App/Site/Proxy/Cron all come with an **in-browser live preview** and
 are published at `https://<your public hostname>/<app-name>/` via an
 automatically-managed Traefik route. New Container is different: it's
 published as an independent host with its own dedicated domain (see
 [`docs/GUIDE_en.md`](docs/GUIDE_en.md) for details).
+
+![In-browser container terminal](docs/images/container-console-en-dark.png)
 
 ### Authentication & access control
 
@@ -107,6 +115,10 @@ published as an independent host with its own dedicated domain (see
   Switchable either way from `/config` at any time.
 
 ### Operations
+
+![Config settings page](docs/images/config-en-dark.png)
+
+![Analytics dashboard](docs/images/analytics-en-dark.png)
 
 - **Analytics dashboard** — Request counts, error rates, response
   times, top destinations, and a per-app status breakdown, all derived

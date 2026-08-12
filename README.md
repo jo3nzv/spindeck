@@ -31,9 +31,13 @@ Webコンソール**です。裏側では[SpinKube](https://www.spinkube.dev/)
 1台のサーバー（VM・LXCコンテナ・ベアメタルいずれでも可）にインストール
 すれば、その日のうちに最初のアプリを公開できます。
 
+![ダッシュボード](docs/images/dashboard-ja-dark.png)
+
 ## 主な機能
 
 ### アプリを作る（5種類）
+
+![New Appエディタ画面](docs/images/editor-ja-dark.png)
 
 - **New App** — VS Code風のブラウザ内エディタ（Monaco）に、
   [Cloudflare Workers](https://developers.cloudflare.com/workers/)風の
@@ -73,11 +77,15 @@ Webコンソール**です。裏側では[SpinKube](https://www.spinkube.dev/)
   違い、公開イメージをそのまま実行するため信頼できるイメージのみ
   指定してください。
 
+![New Container設定画面](docs/images/container-new-ja-dark.png)
+
 New App/Site/Proxy/Cronには**ブラウザ内でのライブプレビュー**が付き、
 `https://<公開ホスト名>/<アプリ名>/`で自動管理されるTraefikルート経由で
 公開されます。New Containerは専用ドメインを持つ独立したホストとして
 公開される点が異なります（詳細は[`docs/GUIDE.md`](docs/GUIDE.md)を
 参照してください）。
+
+![コンテナのブラウザ内ターミナル](docs/images/container-console-ja-dark.png)
 
 ### 認証・アクセス制御
 
@@ -97,6 +105,10 @@ New App/Site/Proxy/Cronには**ブラウザ内でのライブプレビュー**�
   可能です。
 
 ### 運用機能
+
+![Config設定画面](docs/images/config-ja-dark.png)
+
+![アクセス解析ダッシュボード](docs/images/analytics-ja-dark.png)
 
 - **分析ダッシュボード** — リクエスト数、エラー率、応答時間、アクセス先
   Top、アプリごとのステータス内訳を、別途監視基盤を用意せずTraefikの
