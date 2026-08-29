@@ -6,6 +6,15 @@
 
 ## 日本語
 
+### v1.0.2 (2026-08-29)
+
+**新機能**
+- **セッションのアイドルタイムアウトを追加**: これまでログインセッションに有効期限が一切なく、ブラウザを閉じるまで有効なままでした。今回からログイン後の無操作時間を分単位で設定できるようになり（デフォルト30分）、Configページから再起動不要で変更できます。Keycloak・ローカルアカウント・アプリ個別OIDCログインのすべてに共通して適用され、操作を続けている間は延長され続けます（固定の有効期限ではなく、アイドルタイムアウトです）。
+
+**アップグレード方法**: `git pull` の後、`sudo ./scripts/update.sh` を実行してください。
+
+---
+
 ### v1.0.1 (2026-08-11)
 
 **新機能**
@@ -24,6 +33,15 @@
 ---
 
 ## English
+
+### v1.0.2 (2026-08-29)
+
+**New**
+- **Configurable session idle timeout**: login sessions previously had no expiry at all, staying valid until the browser was closed. You can now set how many minutes of inactivity after login it takes for a session to expire automatically (30 minutes by default), from the Config page, with no restart needed. It applies uniformly across Keycloak, local accounts, and per-app OIDC logins alike, and keeps extending as long as activity continues — an idle timeout, not a fixed expiry from login time.
+
+**To upgrade**: `git pull`, then run `sudo ./scripts/update.sh`.
+
+---
 
 ### v1.0.1 (2026-08-11)
 

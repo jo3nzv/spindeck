@@ -222,6 +222,21 @@
   </form>
 </div>
 
+<h2>{{ t('config.session_timeout_heading') }}</h2>
+<p class="section-sub">
+  {{ t('config.session_timeout_desc') }}
+</p>
+<div class="card" style="margin-bottom:1.75rem">
+  <form method="post" class="wrap-row" style="display:flex; gap:0.5rem; align-items:center">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="save_session_timeout">
+    <input name="session_idle_timeout_minutes" type="number" min="1" max="10080" required
+           value="{{ session_idle_timeout_minutes }}" style="max-width:120px">
+    <span>{{ t('config.session_timeout_unit') }}</span>
+    <button type="submit" class="btn-sm">{{ t('config.save') }}</button>
+  </form>
+</div>
+
 <h2>{{ t('config.auth_mode_heading') }}</h2>
 <p class="section-sub">
   {{ t('config.auth_mode_desc') }}

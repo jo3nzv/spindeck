@@ -80,7 +80,7 @@ from i18n import LANG_COOKIE_NAME, SUPPORTED_LANGS, resolve_lang, t as _t
 # sidebar footer (see inject_user()) so a screenshot or bug report always
 # carries it -- no other runtime signal ties a given install back to a
 # specific point in the repo's history.
-SPINDECK_VERSION = "1.0.1"
+SPINDECK_VERSION = "1.0.2"
 
 app = Flask(__name__)
 # "container" apps only -- a browser terminal (kubectl exec, bridged over a
@@ -348,6 +348,23 @@ CONSOLE_AUTH_MODE = _persisted.get("console_auth_mode") or "oidc"
 # hash_apr1_password()/verify_apr1_password() for the hash format.
 CONSOLE_BASIC_AUTH_USERS = list(_persisted.get("console_basic_auth_users", []))
 
+# Idle timeout (minutes) for every session cookie this app issues --
+# console logins (both OIDC and Basic-Auth) and per-app OIDC logins alike,
+# since they all go through the same Flask session mechanism. Login routes
+# set session.permanent = True (see login()/oidc_callback()/
+# spindeck_oidc_callback()); Flask's own SESSION_REFRESH_EACH_REQUEST
+# default (True) then re-issues the cookie with a fresh
+# now+PERMANENT_SESSION_LIFETIME expiry on every request, which is what
+# makes this an *idle* timeout (sliding window) rather than a fixed
+# time-since-login cap -- a continuously active session never expires.
+# Before this setting existed, sessions had no expiry at all (default
+# Flask non-permanent cookie, dies only when the browser closes). Editable
+# from /config (action=save_session_timeout, see config_page()); applied
+# to app.config["PERMANENT_SESSION_LIFETIME"] immediately, no restart
+# needed -- same hot-swap pattern as CONSOLE_AUTH_MODE/TRAEFIK_SCHEME.
+SESSION_IDLE_TIMEOUT_MINUTES = int(_persisted.get("session_idle_timeout_minutes") or 30)
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=SESSION_IDLE_TIMEOUT_MINUTES)
+
 # "http" (default, unchanged behavior) or "https" -- which Traefik
 # entryPoint every app/site/proxy route and the /_spindeck IngressRoute
 # bind to (see route_entrypoints()/route_tls_block()). Switching requires
@@ -438,6 +455,7 @@ def save_persisted_config():
                 "console_allowed_users": CONSOLE_ALLOWED_USERS,
                 "console_auth_mode": CONSOLE_AUTH_MODE,
                 "console_basic_auth_users": CONSOLE_BASIC_AUTH_USERS,
+                "session_idle_timeout_minutes": SESSION_IDLE_TIMEOUT_MINUTES,
                 "traefik_scheme": TRAEFIK_SCHEME,
                 "container_passthrough_enabled": CONTAINER_PASSTHROUGH_ENABLED,
                 "container_user_templates": CONTAINER_USER_TEMPLATES,
@@ -1016,6 +1034,7 @@ def login():
             )
             if account and verify_apr1_password(password, account["password_hash"]):
                 _LOGIN_FAILURES.pop(username, None)
+                session.permanent = True
                 session["user"] = {"sub": None, "name": account["username"], "email": None}
                 return redirect(session.pop("next", None) or url_for("index"))
             _record_login_failure(username)
@@ -1038,6 +1057,7 @@ def oidc_callback():
             f"ログインに失敗しました: {esc(str(exc))} <a href=\"/login\">再試行</a>",
             400,
         )
+    session.permanent = True
     session["user"] = {
         "sub": token.get("userinfo", {}).get("sub"),
         "name": token.get("userinfo", {}).get("preferred_username")
@@ -1358,6 +1378,7 @@ def spindeck_oidc_callback():
         token = oauth.keycloak.authorize_access_token()
     except Exception as exc:  # noqa: BLE001 - any OAuth/state/network failure
         return f"ログインに失敗しました: {esc(str(exc))}", 400
+    session.permanent = True
     session["apps_user"] = {
         "sub": token.get("userinfo", {}).get("sub"),
         "name": token.get("userinfo", {}).get("preferred_username")
@@ -2923,6 +2944,7 @@ def config_page():
     global EXTERNAL_HOST, DEFAULT_FQDN, PEERS
     global SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, TRAEFIK_SCHEME
     global CONSOLE_VIA_TRAEFIK, CONSOLE_AUTH_MODE, CONTAINER_PASSTHROUGH_ENABLED
+    global SESSION_IDLE_TIMEOUT_MINUTES
     errors = []
     saved = False
     generated_peer_token = None
@@ -3149,6 +3171,26 @@ def config_page():
                 try:
                     save_persisted_config()
                 except OSError as exc:
+                    errors.append(f"設定の保存に失敗しました: {exc}")
+                else:
+                    saved = True
+        elif action == "save_session_timeout":
+            old_timeout = SESSION_IDLE_TIMEOUT_MINUTES
+            new_timeout_raw = request.form.get("session_idle_timeout_minutes", "").strip()
+            try:
+                new_timeout = int(new_timeout_raw)
+            except ValueError:
+                new_timeout = -1
+            if not (1 <= new_timeout <= 10080):  # 1分〜7日
+                errors.append("アイドルタイムアウトは1〜10080分（7日）の数値で入力してください。")
+            else:
+                SESSION_IDLE_TIMEOUT_MINUTES = new_timeout
+                app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=new_timeout)
+                try:
+                    save_persisted_config()
+                except OSError as exc:
+                    SESSION_IDLE_TIMEOUT_MINUTES = old_timeout
+                    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=old_timeout)
                     errors.append(f"設定の保存に失敗しました: {exc}")
                 else:
                     saved = True
@@ -3388,6 +3430,7 @@ def config_page():
         console_allowed_users=CONSOLE_ALLOWED_USERS,
         console_auth_mode=CONSOLE_AUTH_MODE,
         basic_auth_users=CONSOLE_BASIC_AUTH_USERS,
+        session_idle_timeout_minutes=SESSION_IDLE_TIMEOUT_MINUTES,
         peers=PEERS,
         peer_token_configured=bool(PEER_TOKEN),
         generated_peer_token=generated_peer_token,

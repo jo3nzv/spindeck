@@ -536,6 +536,13 @@ Either way, if you want to restrict who has access:
 > account, switching to local accounts while zero accounts exist, etc.)
 > is rejected on save.
 
+`/config`'s "セッションのアイドルタイムアウト" (Session idle timeout)
+section sets how many minutes of inactivity after login it takes for a
+session to expire automatically (30 minutes by default). It applies
+uniformly across Keycloak, local accounts, and per-app OIDC logins alike,
+and keeps extending as long as activity continues — it's an idle timeout,
+not a fixed expiry from login time. No restart needed to change it.
+
 ## Viewing access analytics
 
 **📈 Analytics** shows recent access activity — request-count trends,
