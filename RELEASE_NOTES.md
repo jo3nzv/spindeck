@@ -6,6 +6,15 @@
 
 ## 日本語
 
+### v1.0.3 (2026-10-11)
+
+**バグ修正**
+- **Keycloakログインが`mismatching_state: CSRF Warning!`で失敗する不具合を修正**: ログイン開始時(Keycloak/アプリ個別OIDCの両方)にセッションを`permanent`にするタイミングが認証成功後のみだったため、Keycloakへのリダイレクト中に`state`を保持するクッキーに有効期限が付いておらず、タブがバックグラウンドで長時間放置されるなどのケースでブラウザがそのクッキーだけを先に破棄してしまうことがありました。初回ログインは成立するが、しばらく経ってから再度ログインしようとすると失敗する、という形で表面化していました。
+
+**アップグレード方法**: `git pull` の後、`sudo ./scripts/update.sh` を実行してください。
+
+---
+
 ### v1.0.2 (2026-08-29)
 
 **新機能**
@@ -33,6 +42,15 @@
 ---
 
 ## English
+
+### v1.0.3 (2026-10-11)
+
+**Bug fixes**
+- **Fixed Keycloak login failing with `mismatching_state: CSRF Warning!`**: the session was only marked `permanent` after a successful login, so the cookie holding the pending `state` during the redirect to Keycloak had no explicit expiry. Some browsers would drop that cookie on its own if the tab sat backgrounded for a while, so the first login would succeed but a later login attempt would fail this way.
+
+**To upgrade**: `git pull`, then run `sudo ./scripts/update.sh`.
+
+---
 
 ### v1.0.2 (2026-08-29)
 

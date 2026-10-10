@@ -80,7 +80,7 @@ from i18n import LANG_COOKIE_NAME, SUPPORTED_LANGS, resolve_lang, t as _t
 # sidebar footer (see inject_user()) so a screenshot or bug report always
 # carries it -- no other runtime signal ties a given install back to a
 # specific point in the repo's history.
-SPINDECK_VERSION = "1.0.2"
+SPINDECK_VERSION = "1.0.3"
 
 app = Flask(__name__)
 # "container" apps only -- a browser terminal (kubectl exec, bridged over a
@@ -1015,6 +1015,17 @@ def login():
     if session.get("user"):
         return redirect(url_for("index"))
     if CONSOLE_AUTH_MODE != "basic":
+        # Permanent *before* authorize_redirect() stores "state"/"nonce" in
+        # the session -- otherwise that cookie carries no explicit Expires/
+        # Max-Age at all (a bare browser-session cookie), which some
+        # browsers drop from a backgrounded/suspended tab well before the
+        # user actually finishes logging in at Keycloak, surfacing on
+        # return as "mismatching_state: CSRF Warning!" even though nothing
+        # was wrong with the login itself. Confirmed live as the cause of
+        # exactly that symptom (worked on first login, failed after the
+        # tab sat idle). session["next"] below (and check_auth()'s own
+        # copy of it) rides along on the same now-permanent cookie.
+        session.permanent = True
         return oauth.keycloak.authorize_redirect(OIDC_REDIRECT_URI)
 
     # Basic-Auth mode: a local username+password form, no Keycloak
@@ -1352,6 +1363,12 @@ def spindeck_oidc_login():
     if not next_url.startswith(f"{origin}/"):
         next_url = f"{origin}/"  # ignore anything not pointing back to this same host
     session["apps_next"] = next_url
+    # Same reasoning as login()'s own session.permanent = True: without it,
+    # the cookie authorize_redirect() is about to stash "state"/"nonce" in
+    # has no explicit Expires/Max-Age, making it a bare browser-session
+    # cookie some browsers drop from a backgrounded tab before the user
+    # finishes at Keycloak -- surfacing as "mismatching_state" on return.
+    session.permanent = True
     # ?switch=1 (the apps_forbidden.html "別のユーザーでログイン" link) forces a
     # fresh credential prompt instead of Keycloak silently re-issuing a code
     # for the same SSO session that just got rejected as not-allow-listed.
